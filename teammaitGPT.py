@@ -98,6 +98,12 @@ with st.sidebar:
         ],
         index=0,
     )
+    st.session_state['username'] = username
+    st.session_state['empathy'] = empathy
+    st.session_state['brevity'] = brevity
+    st.session_state['stream_on'] = stream_on
+    st.session_state['show_timestamps'] = show_timestamps
+    st.session_state['model'] = model
 
     st.divider()
     st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
@@ -109,10 +115,7 @@ with st.sidebar:
     metadata = {
         "app_name": "TeamMait Open-Ended Chat",
         "session_name": session_name,
-        "username": username,
-        "model_setting": model,
-        "empathy_setting": empathy,
-        "brevity_setting": brevity,
+        **{k: st.session_state[k] for k in ["username", "model", "empathy", "brevity"] if k in st.session_state},
         "message_count": len(st.session_state.messages),
         "exported_at": datetime.now().isoformat(),
     }
@@ -134,7 +137,7 @@ with st.sidebar:
         timestamp = datetime.now().isoformat()
 
         # Save to Google Sheets
-        sheet.append_row([username, json.dumps(messages), timestamp])
+        sheet.append_row([json.dumps(messages), timestamp])
 
 # ---------- Layout CSS ----------
 st.markdown(
