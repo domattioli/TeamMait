@@ -5,6 +5,17 @@ from urllib.parse import quote
 import json
 from datetime import datetime
 import os
+from oauth2client.service_account import ServiceAccountCredentials
+import gspread
+
+
+# ---------- Databasing (quick and sloppy) ----------
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
+sheet = client.open(st.secrets["SHEET_NAME"]).sheet1
+
 
 # Optional SDKs (load if installed)
 try:
@@ -111,12 +122,19 @@ with st.sidebar:
         "errors": st.session_state.errors,
     }
     json_data = json.dumps(export_data, indent=2)
-    st.download_button(
-        label="Export chat",
-        data=json_data,
-        file_name=f"{session_name}.json",
-        mime="application/json",
-    )
+    if st.download_button(
+            label="Export chat",
+            data=json_data,
+            file_name=f"{session_name}.json",
+            mime="application/json",
+        ):
+        # Prepare export data
+        username = st.session_state.get("username", "anonymous")
+        messages = st.session_state.messages
+        timestamp = datetime.now().isoformat()
+
+        # Save to Google Sheets
+        sheet.append_row([username, json.dumps(messages), timestamp])
 
 # ---------- Layout CSS ----------
 st.markdown(
@@ -283,7 +301,7 @@ st.markdown("</div>", unsafe_allow_html=True)  # close chat-wrapper
 st.markdown("</div>", unsafe_allow_html=True)  # close app-container
 
 # ---------- Input (docked at bottom) ----------
-prompt = st.chat_input("Talk to your TeamMait")
+prompt = st.chat_input("Talk to your TeamMait here...")
 
 if prompt:
     # Store and render user message — canonical role for APIs, keep display name for UI
