@@ -199,7 +199,7 @@ def to_anthropic_messages(history):
     converted = []
     for m in history:
         role = m.get("role")
-        if role in ("user", "assistant"):
+        if role in ("user", "teammait"):
             converted.append({"role": role, "content": [{"type": "text", "text": m["content"]}]})
     return converted
 
@@ -329,10 +329,10 @@ if prompt:
     if reply_text and reply_text.startswith("[Error:"):
         st.session_state.errors.append({"when": now_ts(), "model": model, "msg": reply_text})
 
-    assistant_msg = {
+    teammait_msg = {
         "role": "assistant",
         "content": reply_text,
         "ts": now_ts(),
         "display_name": "TeamMait",
     }
-    st.session_state.messages.append(assistant_msg)
+    st.session_state.messages.append(teammait_msg)
