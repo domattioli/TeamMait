@@ -45,7 +45,7 @@ DM_SVG = svg_data_uri(
         </linearGradient>
       </defs>
       <circle cx='32' cy='32' r='32' fill='url(#g)'/>
-      <text x='50%' y='54%' text-anchor='middle' font-family='Inter,Arial' font-size='24' fill='#e5e7eb' font-weight='700'>DM</text>
+      <text x='50%' y='54%' text-anchor='middle' font-family='Inter,Arial' font-size='24' fill='#e5e7eb' font-weight='700'>U</text>
     </svg>
     """).strip()
 )
