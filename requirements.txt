@@ -2,11 +2,10 @@ streamlit
 oauth2client
 gspread
 sentence-transformers
-chromadb>=0.4.0
+chromadb
 openai
 huggingface_hub
 pydantic<2.0
 joblib
 scikit-learn
 loky
-sqlite3
