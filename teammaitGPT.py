@@ -83,7 +83,13 @@ data = load_conversation()
 def init_vectorstore():
     embed_model = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
-    client = chromadb.PersistentClient(path="./rag_store")
+    # client = chromadb.PersistentClient(path="./rag_store")
+    client = chromadb.PersistentClient(
+        settings=Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory="./rag_store"
+        )
+    )
     collection = client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
     # Load transcript only once
