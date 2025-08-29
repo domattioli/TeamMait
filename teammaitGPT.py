@@ -11,6 +11,8 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.utils import embedding_functions
 from openai import OpenAI
+from chromadb.config import Settings
+
 
 
 # ---------- Databasing (quick and sloppy) ----------
@@ -52,7 +54,14 @@ embed_model = "sentence-transformers/all-MiniLM-L6-v2"
 embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
 
 # Setup Chroma vector DB
-client = chromadb.PersistentClient(path="./rag_store")
+# client = chromadb.PersistentClient(path="./rag_store")
+# Use DuckDB backend for ChromaDB
+client = chromadb.PersistentClient(
+    settings=Settings(
+        chroma_db_impl="duckdb+parquet",
+        persist_directory="./rag_store"
+    )
+)
 collection = client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
 # ---------- Load JSON Conversation into Vector Store ----------
@@ -401,7 +410,6 @@ if prompt:
 
     # ---------- NEW: Retrieve context from vector DB ----------
     results = collection.query(query_texts=[prompt], n_results=3)
-    print(results)
     context = " ".join(results["documents"][0])
 
     # System prompt
