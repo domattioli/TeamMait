@@ -2,7 +2,7 @@ streamlit
 oauth2client
 gspread
 sentence-transformers
-chromadb
+chromadb>=0.4.0
 openai
 huggingface_hub
 pydantic<2.0
