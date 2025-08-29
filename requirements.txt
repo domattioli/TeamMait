@@ -1,8 +1,8 @@
-streamlit==1.49.0
-oauth2client==4.1.3
-gspread==6.2.1
-sentence-transformers==2.2.2
+streamlit
+oauth2client
+gspread
+sentence-transformers
 chromadb>=0.4.0
 openai
-huggingface_hub==0.14.1
+huggingface_hub
 pydantic<2.0
