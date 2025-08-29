@@ -7,6 +7,10 @@ from datetime import datetime
 import os
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from sentence_transformers import SentenceTransformer
+import chromadb
+from chromadb.utils import embedding_functions
+from openai import OpenAI
 
 
 # ---------- Databasing (quick and sloppy) ----------
@@ -41,7 +45,49 @@ def get_user_details():
 
 if "user_info" not in st.session_state:
     get_user_details()
+
+
+# Load embeddings
+embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
+
+# Setup Chroma vector DB
+client = chromadb.PersistentClient(path="./rag_store")
+collection = client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+
+# ---------- Load JSON Conversation into Vector Store ----------
+@st.cache_resource
+def load_conversation():
+    with open("116_P8_conversation.json") as f:
+        data = json.load(f)
+
+    # Store only once
+    if collection.count() == 0:
+        for i, turn in enumerate(data["full_conversation"]):
+            collection.add(documents=[turn], ids=[f"conv_{i}"])
+    return data
+
+data = load_conversation()
     
+# Init embeddings + Chroma (do this once, cache with st.cache_resource)
+@st.cache_resource
+def init_vectorstore():
+    embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
+    client = chromadb.PersistentClient(path="./rag_store")
+    collection = client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+
+    # Load transcript only once
+    if collection.count() == 0:
+        with open("116_P8_conversation.json") as f:
+            data = json.load(f)
+        for i, turn in enumerate(data["full_conversation"]):
+            collection.add(documents=[turn], ids=[f"conv_{i}"])
+    return collection
+
+collection = init_vectorstore()
+
+
 # ---------- Simple avatars (SVG data URIs) ----------
 def svg_data_uri(svg: str) -> str:
     return "data:image/svg+xml;utf8," + quote(svg)
@@ -342,7 +388,6 @@ st.markdown("</div>", unsafe_allow_html=True)  # close app-container
 
 # ---------- Input ----------
 prompt = st.chat_input("Talk to your TeamMait here...")
-
 if prompt:
     # Store and render user message — canonical role for APIs, keep display name for UI
     user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
@@ -353,8 +398,19 @@ if prompt:
             st.caption(user_msg["ts"])
         st.markdown(prompt)
 
+
+    # ---------- NEW: Retrieve context from vector DB ----------
+    results = collection.query(query_texts=[prompt], n_results=3)
+    print(results)
+    context = " ".join(results["documents"][0])
+
     # System prompt
-    system_prompt = build_system_prompt(empathy, brevity)
+    system_prompt = build_system_prompt(empathy, brevity) + f"""
+
+    Use the following session context when answering:
+
+    {context}
+    """
 
     # Route provider by model prefix
     use_openai = model.startswith("gpt-")
@@ -383,7 +439,6 @@ if prompt:
             )
             st.markdown(reply_text or "")
 
-    # Log errors but keep content as a string
     if reply_text and reply_text.startswith("[Error:"):
         st.session_state.errors.append({"when": now_ts(), "model": model, "msg": reply_text})
 
