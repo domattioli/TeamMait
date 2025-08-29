@@ -31,6 +31,17 @@ except ImportError:
 # ---------- Page & Theme ----------
 st.set_page_config(page_title="TeamMait Private Conversation", page_icon="💬", layout="wide")
 
+@st.dialog("Login", dismissible=False, width="small" )
+def get_user_details():
+    username = st.text_input("Username")
+    email = st.text_input("Email")
+    if st.button("Submit"):
+        st.session_state.user_info = {"username": username, "email": email}
+        st.rerun()
+
+if "user_info" not in st.session_state:
+    get_user_details()
+    
 # ---------- Simple avatars (SVG data URIs) ----------
 def svg_data_uri(svg: str) -> str:
     return "data:image/svg+xml;utf8," + quote(svg)
@@ -81,8 +92,16 @@ if "errors" not in st.session_state:
 
 # ---------- Sidebar (settings) ----------
 with st.sidebar:
+    if "user_info" in st.session_state:
+        st.markdown(f"**Username:** {st.session_state.user_info['username']}")
+        st.markdown(f"**Email:** {st.session_state.user_info['email']}")
+    
+    st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
+    st.divider()
+
     st.markdown("#### Settings")
-    username = st.text_input("Your name", value="username")
+    username = st.session_state.get("user_info", {}).get("username", "unknown")
+    email = st.session_state.get("user_info", {}).get("email", "unknown")
     empathy = st.slider("Empathy", 0, 100, 50, 5)
     brevity = st.slider("Brevity", 1, 5, 4, 1)
     stream_on = st.checkbox("Stream responses", value=True)
@@ -98,15 +117,13 @@ with st.sidebar:
         ],
         index=0,
     )
-    st.session_state['username'] = username
+    # st.session_state['user_info'] = st.session_state.user_info
     st.session_state['empathy'] = empathy
     st.session_state['brevity'] = brevity
     st.session_state['stream_on'] = stream_on
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
 
-    st.divider()
-    st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
     st.divider()
 
     # Exporting
@@ -131,8 +148,8 @@ with st.sidebar:
             file_name=f"{session_name}.json",
             mime="application/json",
         ):
+
         # Prepare export data
-        username = st.session_state.get("username", "anonymous")
         messages = st.session_state.messages
         timestamp = datetime.now().isoformat()
 
@@ -143,8 +160,16 @@ with st.sidebar:
 st.markdown(
     """
     <style>
-      .app-container {max-width: 50px; margin: 0 auto;}
-      .chat-wrapper {height: 50vh; overflow-y: auto; padding: 0 4px;}
+      .app-container {
+        max-width: 700px;
+        margin: 0 auto;
+        padding-top: 0px;
+      }
+      .chat-wrapper {
+        min-height: 0px;
+        padding: 0 4px;
+        margin-top: 0px;
+      }
       .msg.user { display: flex; justify-content: flex-end; }
       .msg.user .stChatMessage {
             flex-direction: row-reverse;
@@ -162,6 +187,18 @@ st.markdown(
 
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
 st.title("TeamMait Private Conversation")
+
+# ---------- Referenced Conversation (docked at top) ----------
+# Load the conversation JSON
+with open("116_P8_conversation.json", "r") as f:
+    data = json.load(f)
+conversation = data.get("full_conversation", [])
+
+# Expander pinned below chat and input
+with st.expander("Show Reference Full Conversation", expanded=False, ):
+    for turn in conversation:
+        st.markdown(turn)
+
 
 # ---------- Provider key loaders (lazy; no top-level secrets access) ----------
 def get_secret_then_env(name: str) -> str:
@@ -303,7 +340,7 @@ for m in st.session_state.messages:
 st.markdown("</div>", unsafe_allow_html=True)  # close chat-wrapper
 st.markdown("</div>", unsafe_allow_html=True)  # close app-container
 
-# ---------- Input (docked at bottom) ----------
+# ---------- Input ----------
 prompt = st.chat_input("Talk to your TeamMait here...")
 
 if prompt:
