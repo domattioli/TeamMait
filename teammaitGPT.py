@@ -107,7 +107,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hi, my name is TeamMait. Do you have any questions to ask me about Session N?",
+            "content": "Hi, my name is TeamMait. Do you have any questions to ask me about the referenced session transcript?",
             "ts": now_ts(),
             "display_name": "TeamMait",
         }
@@ -227,7 +227,7 @@ data = load_conversation_and_seed()
 
 # ---------- Reference Conversation (expander) ----------
 conversation = data.get("full_conversation", [])
-with st.expander("Show Reference Full Conversation", expanded=False):
+with st.expander("Show Referenced Full Conversation", expanded=False):
     for turn in conversation:
         st.markdown(turn)
 
@@ -237,11 +237,11 @@ def build_system_prompt(empathy_value: int, brevity_level: int) -> str:
         "You are TeamMait, a peer support assistant to a human clinician who is an expert mental health professsional. "
         "You are designed for calm, precise dialogue. "
         "Adopt an academically neutral tone; do not use emojis. "
-        f"The user has specified an empathy target of {empathy_value} out of maximum of 100, with 0 being not empathetic at all and 100 being the most possible empathy you are capable of without being sychphantic."
-        f"The user has specified a brevity/concision level of {brevity_level} out of maximum of 5, with 1 being the lease concise and 5 being the most concise possible without omitting important details. "
+        f"The user has specified an empathy target of {empathy_value} out of maximum of 100, with 0 being not empathetic at all (completely stoic) and 100 being the most possible empathy you are capable of without being sychphantic."
+        f"The user has specified a brevity/concision level of {brevity_level} out of maximum of 5, with 1 being the lease concise and 5 being the most concise possible without omitting important details and 1 being the least concise possible (most verbose) without including irrelevant details. "
         "When uncertain, ask for the single most decision-relevant clarification. "
-        "Cite specific content fromthe referenced documents as much as possible. If no citation exists, say so."
-        "Never talk about off-topic subjects even if asked. Only talk about the referenced documents."
+        "Cite specific content from the referenced transcript(s) as much as possible. If no citation exists, say so."
+        "Never talk about off-topic subjects even if asked. Only talk about the referenced transcript(s)."
     )
 
 # ---------- Provider clients ----------
@@ -379,6 +379,10 @@ if prompt:
     for docs in results.get("documents", []):
         context_parts.extend(docs)
     context = " ".join(context_parts)
+
+    # ---------- Show evidence to user ----------
+    st.markdown("**Evidence used for this answer:**")
+    st.markdown(context)
 
     system_prompt = build_system_prompt(st.session_state["empathy"], st.session_state["brevity"]) + f"""
 
