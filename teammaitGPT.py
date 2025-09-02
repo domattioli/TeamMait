@@ -126,7 +126,7 @@ with st.sidebar:
     empathy = st.slider("Empathy", 0, 100, 50, 5)
     brevity = st.slider("Brevity", 1, 5, 4, 1)
     stream_on = st.checkbox("Stream responses", value=True)
-    show_timestamps = st.checkbox("Always show timestamps", value=False)
+    show_timestamps = st.checkbox("Display timestamps", value=False)
 
     model = st.selectbox(
         "model",
@@ -383,7 +383,7 @@ if prompt:
     # --- Conditional evidence display ---
     show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
     if show_evidence:
-        st.markdown("**Evidence used for this answer:**")
+        st.markdown("**Evidence (from transcript) used for this answer:**")
         for i, evidence in enumerate(context_parts, 1):
             st.markdown(f"> {evidence}")
 
