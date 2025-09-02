@@ -380,9 +380,12 @@ if prompt:
         context_parts.extend(docs)
     context = " ".join(context_parts)
 
-    # ---------- Show evidence to user ----------
-    st.markdown("**Evidence used for this answer:**")
-    st.markdown(context)
+    # --- Conditional evidence display ---
+    show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
+    if show_evidence:
+        st.markdown("**Evidence used for this answer:**")
+        for i, evidence in enumerate(context_parts, 1):
+            st.markdown(f"> {evidence}")
 
     system_prompt = build_system_prompt(st.session_state["empathy"], st.session_state["brevity"]) + f"""
 
