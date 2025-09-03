@@ -136,16 +136,18 @@ with st.sidebar:
     stream_on = st.checkbox("Stream responses", value=True)
     show_timestamps = st.checkbox("Display timestamps", value=False)
 
-    model = st.selectbox(
-        "model",
-        [
-            "gpt-4o-mini",
-            "claude-3-5-sonnet-20240620",
-            "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
-        ],
-        index=0,
-    )
+    # model = st.selectbox(
+    #     "model",
+    #     [
+    #         "gpt-4o-mini",
+    #         "claude-3-5-sonnet-20240620",
+    #         "claude-3-5-haiku-20241022",
+    #         "claude-3-opus-20240229",
+    #     ],
+    #     index=0,
+    # )
+    model = r"gpt-4o-mini"
+
     # st.session_state['empathy'] = empathy
     st.session_state['brevity'] = brevity
     st.session_state['stream_on'] = stream_on
