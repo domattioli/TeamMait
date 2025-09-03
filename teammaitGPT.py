@@ -128,13 +128,12 @@ with st.sidebar:
     st.markdown(f"**Username:** {username}")
     st.markdown(f"**Email:** {email}")
     # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
-    st.divider()
 
-    st.markdown("#### Settings")
-    # empathy = st.slider("Empathy", 0, 100, 50, 5)
-    brevity = st.slider("Brevity", 1, 5, 3, 1)
-    stream_on = st.checkbox("Stream responses", value=True)
-    show_timestamps = st.checkbox("Display timestamps", value=True)
+    with st.expander("Settings", expanded=True):
+        # empathy = st.slider("Empathy", 0, 100, 50, 5)
+        brevity = st.slider("Brevity", 1, 5, 3, 1)
+        stream_on = st.checkbox("Stream responses", value=True)
+        show_timestamps = st.checkbox("Display timestamps", value=True)
 
     # model = st.selectbox(
     #     "model",
@@ -155,43 +154,75 @@ with st.sidebar:
     st.session_state['model'] = model
 
     # Meta notes
-    st.divider()
-    st.markdown("#### Meta Notes")
-    user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
+    # st.markdown("#### Meta Notes")
+    # user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
+    with st.expander("Meta Notes", expanded=True):
+        user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
 
     # Exporting
-    st.divider()
-    st.caption("Export data as a .json file")
-    session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
-    metadata = {
-        "app_name": "TeamMait Open-Ended Chat",
-        "session_name": session_name,
-        "username": username,
-        "model": model,
-        # "empathy": empathy,
-        "brevity": brevity,
-        "message_count": len(st.session_state.messages),
-        "user_notes": user_notes,
-        "exported_at": datetime.now().isoformat(),
-    }
+    # st.caption("Export data as a .json file")
+    # session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
+    with st.expander( "Save Data", expanded=True):
+        session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
 
-    export_data = {
-        "metadata": metadata,
-        "messages": st.session_state.messages,
-        "errors": st.session_state.errors,
-    }
-    json_data = json.dumps(export_data, indent=2)
-    if st.download_button(
-        label="Export chat",
-        data=json_data,
-        file_name=f"{session_name}.json",
-        mime="application/json",
-    ):
-        # Prepare export data
-        messages = st.session_state.messages
-        timestamp = datetime.now().isoformat()
-        # Save to Google Sheets
-        sheet.append_row([json.dumps(messages), timestamp])
+        metadata = {
+            "app_name": "TeamMait Open-Ended Chat",
+            "session_name": session_name,
+            "username": username,
+            "model": model,
+            # "empathy": empathy,
+            "brevity": brevity,
+            "message_count": len(st.session_state.messages),
+            "user_notes": user_notes,
+            "exported_at": datetime.now().isoformat(),
+        }
+
+        export_data = {
+            "metadata": metadata,
+            "messages": st.session_state.messages,
+            "errors": st.session_state.errors,
+        }
+        json_data = json.dumps(export_data, indent=2)
+        if st.download_button(
+            label="Export chat as .json",
+            data=json_data,
+            file_name=f"{session_name}.json",
+            mime="application/json",
+        ):
+            # Prepare export data
+            messages = st.session_state.messages
+            timestamp = datetime.now().isoformat()
+            # Save to Google Sheets
+            sheet.append_row([json.dumps(messages), timestamp])
+
+    st.divider()
+    # ---------- Chroma initialization (after login) ----------
+    embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
+
+    chroma_client = chromadb.PersistentClient(
+        path="./rag_store",
+        settings=Settings(),
+        tenant=DEFAULT_TENANT,
+        database=DEFAULT_DATABASE,
+    )
+    collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+
+    # ---------- Reference Conversation (expander) ----------
+    @st.cache_resource
+    def load_conversation_and_seed():
+        with open("116_P8_conversation.json") as f:
+            data = json.load(f)
+        if collection.count() == 0:
+            for i, turn in enumerate(data.get("full_conversation", [])):
+                collection.add(documents=[turn], ids=[f"conv_{i}"])
+        return data
+
+    data = load_conversation_and_seed()
+    conversation = data.get("full_conversation", [])
+    with st.expander("Show Referenced Full Conversation", expanded=True):
+        for turn in conversation:
+            st.markdown(turn)
 
 # ---------- Layout CSS ----------
 st.markdown(
@@ -207,7 +238,7 @@ st.markdown(
             margin-right: 0;
             margin-left: auto;
       }
-      .stChatMessage {padding-top: 0.25rem; padding-bottom: 0.25rem;}
+      .stChatMessage {padding-top: 0.2rem; padding-bottom: 0.2rem;}
       .stChatInputContainer {position: sticky; bottom: 0; background: var(--background-color);}
     </style>
     """,
@@ -217,35 +248,24 @@ st.markdown(
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
 st.title("TeamMait Private Conversation")
 
-# ---------- Chroma initialization (after login) ----------
-embed_model = "sentence-transformers/all-MiniLM-L6-v2"
-embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
 
-chroma_client = chromadb.PersistentClient(
-    path="./rag_store",
-    settings=Settings(),
-    tenant=DEFAULT_TENANT,
-    database=DEFAULT_DATABASE,
-)
-collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+# # ---------- Load JSON Conversation into Vector Store ----------
+# @st.cache_resource
+# def load_conversation_and_seed():
+#     with open("116_P8_conversation.json") as f:
+#         data = json.load(f)
+#     if collection.count() == 0:
+#         for i, turn in enumerate(data.get("full_conversation", [])):
+#             collection.add(documents=[turn], ids=[f"conv_{i}"])
+#     return data
 
-# ---------- Load JSON Conversation into Vector Store ----------
-@st.cache_resource
-def load_conversation_and_seed():
-    with open("116_P8_conversation.json") as f:
-        data = json.load(f)
-    if collection.count() == 0:
-        for i, turn in enumerate(data.get("full_conversation", [])):
-            collection.add(documents=[turn], ids=[f"conv_{i}"])
-    return data
+# data = load_conversation_and_seed()
 
-data = load_conversation_and_seed()
-
-# ---------- Reference Conversation (expander) ----------
-conversation = data.get("full_conversation", [])
-with st.expander("Show Referenced Full Conversation", expanded=False):
-    for turn in conversation:
-        st.markdown(turn)
+# # ---------- Reference Conversation (expander) ----------
+# conversation = data.get("full_conversation", [])
+# with st.expander("Show Referenced Full Conversation", expanded=False):
+#     for turn in conversation:
+#         st.markdown(turn)
 
 # ---------- Prompt builder ----------
 def structure_prompt(level:int) -> str:
