@@ -127,7 +127,7 @@ BREVITY = {
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
     st.markdown(f"**Email:** {email}")
-    st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
+    # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
     st.divider()
 
     st.markdown("#### Settings")
@@ -154,9 +154,13 @@ with st.sidebar:
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
 
+    # Meta notes
     st.divider()
+    st.markdown("#### Meta Notes")
+    user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
 
     # Exporting
+    st.divider()
     st.caption("Export data as a .json file")
     session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
     metadata = {
@@ -167,8 +171,10 @@ with st.sidebar:
         # "empathy": empathy,
         "brevity": brevity,
         "message_count": len(st.session_state.messages),
+        "user_notes": user_notes,
         "exported_at": datetime.now().isoformat(),
     }
+
     export_data = {
         "metadata": metadata,
         "messages": st.session_state.messages,
