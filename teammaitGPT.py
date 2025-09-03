@@ -134,7 +134,7 @@ with st.sidebar:
     # empathy = st.slider("Empathy", 0, 100, 50, 5)
     brevity = st.slider("Brevity", 1, 5, 3, 1)
     stream_on = st.checkbox("Stream responses", value=True)
-    show_timestamps = st.checkbox("Display timestamps", value=False)
+    show_timestamps = st.checkbox("Display timestamps", value=True)
 
     # model = st.selectbox(
     #     "model",
