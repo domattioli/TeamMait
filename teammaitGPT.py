@@ -107,7 +107,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hi, my name is TeamMait. Do you have any questions to ask me about the referenced session transcript?",
+            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript? It can be found in the left side panel. When you're done, please make sure to save the chat!",
             "ts": now_ts(),
             "display_name": "TeamMait",
         }
@@ -129,7 +129,7 @@ with st.sidebar:
     st.markdown(f"**Email:** {email}")
     # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
 
-    with st.expander("Settings", expanded=True):
+    with st.expander("Settings", expanded=False):
         # empathy = st.slider("Empathy", 0, 100, 50, 5)
         brevity = st.slider("Brevity", 1, 5, 3, 1)
         stream_on = st.checkbox("Stream responses", value=True)
@@ -186,8 +186,9 @@ with st.sidebar:
         if st.download_button(
             label="Export chat as .json",
             data=json_data,
-            file_name=f"{session_name}.json",
+            file_name=f"{session_name}.json", 
             mime="application/json",
+            type="primary",
         ):
             # Prepare export data
             messages = st.session_state.messages
@@ -195,7 +196,7 @@ with st.sidebar:
             # Save to Google Sheets
             sheet.append_row([json.dumps(messages), timestamp])
 
-    st.divider()
+    # st.divider()
     # ---------- Chroma initialization (after login) ----------
     embed_model = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
@@ -209,20 +210,78 @@ with st.sidebar:
     collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
     # ---------- Reference Conversation (expander) ----------
+    import glob
     @st.cache_resource
-    def load_conversation_and_seed():
-        with open("116_P8_conversation.json") as f:
-            data = json.load(f)
-        if collection.count() == 0:
-            for i, turn in enumerate(data.get("full_conversation", [])):
-                collection.add(documents=[turn], ids=[f"conv_{i}"])
-        return data
+    def load_rag_documents():
+        doc_folder = "doc/RAG"
+        supporting_folder = os.path.join(doc_folder, "supporting_documents")
+        documents = []
+        ids = []
+        # Load main reference conversation
+        ref_path = os.path.join(doc_folder, "116_P8_conversation.json")
+        if os.path.exists(ref_path):
+            with open(ref_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "full_conversation" in data:
+                    for i, turn in enumerate(data["full_conversation"]):
+                        documents.append(str(turn))
+                        ids.append(f"ref_{i}")
+                elif isinstance(data, list):
+                    for i, item in enumerate(data):
+                        documents.append(str(item))
+                        ids.append(f"ref_{i}")
+        # Load .txt and .json files from supporting_documents
+        for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
+            with open(txt_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                documents.append(content)
+                ids.append(f"supp_txt_{os.path.basename(txt_path)}")
+        for json_path in glob.glob(os.path.join(supporting_folder, "*.json")):
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    for i, item in enumerate(data):
+                        documents.append(str(item))
+                        ids.append(f"supp_json_{os.path.basename(json_path)}_{i}")
+                elif isinstance(data, dict):
+                    for k, v in data.items():
+                        documents.append(f"{k}: {v}")
+                        ids.append(f"supp_json_{os.path.basename(json_path)}_{k}")
+        # Seed collection if empty
+        if collection.count() == 0 and documents:
+            collection.add(documents=documents, ids=ids)
+        return documents
 
-    data = load_conversation_and_seed()
-    conversation = data.get("full_conversation", [])
+    rag_documents = load_rag_documents()
+    # Show only the reference conversation in the expander
+    ref_conversation = []
+    ref_path = os.path.join("doc/RAG", "116_P8_conversation.json")
+    if os.path.exists(ref_path):
+        with open(ref_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict) and "full_conversation" in data:
+                ref_conversation = data["full_conversation"]
+            elif isinstance(data, list):
+                ref_conversation = data
     with st.expander("Show Referenced Full Conversation", expanded=True):
-        for turn in conversation:
-            st.markdown(turn)
+        if ref_conversation:
+            for i, turn in enumerate(ref_conversation):
+                # Determine if this is a client's turn (usually every other turn)
+                is_client = turn.strip().startswith("Client: ")
+                
+                if is_client:
+                    # Right-justify client's messages with custom CSS
+                    st.markdown(f"""
+                    <div style="text-align: right; margin-left: 0%; padding: 10px; 
+                    border-radius: 10px;">
+                    {turn}
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # Default styling for non-client messages
+                    st.markdown(turn)
+        else:
+            st.info("No reference conversation found in 116_P8_conversation.json.")
 
 # ---------- Layout CSS ----------
 st.markdown(
@@ -240,6 +299,15 @@ st.markdown(
       }
       .stChatMessage {padding-top: 0.2rem; padding-bottom: 0.2rem;}
       .stChatInputContainer {position: sticky; bottom: 0; background: var(--background-color);}
+      button[data-testid="stDownloadButton"] {
+        background-color: #4F8A8B;
+        color: red;
+        border-radius: 6px;
+        border: none;
+      }
+      button[data-testid="stDownloadButton"]:hover {
+        background-color: #306B6B;
+      }
     </style>
     """,
     unsafe_allow_html=True,
