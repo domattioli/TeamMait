@@ -9,6 +9,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from sentence_transformers import SentenceTransformer
 import sys
+import glob
 
 # ---------- SQLite shim for Chroma ----------
 try:
@@ -157,8 +158,8 @@ with st.sidebar:
     # Meta notes
     # st.markdown("#### Meta Notes")
     # user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
-    with st.expander("Meta Notes", expanded=True):
-        user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
+    with st.expander("User Notes", expanded=True):
+        user_notes = st.text_area("Enter any feedback you have for the TeamMait here:", height=180)
 
     # Exporting
     # st.caption("Export data as a .json file")
@@ -211,7 +212,6 @@ with st.sidebar:
     collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
     # ---------- Reference Conversation (expander) ----------
-    import glob
     @st.cache_resource
     def load_rag_documents():
         doc_folder = "doc/RAG"
