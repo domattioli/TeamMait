@@ -115,14 +115,15 @@ if "messages" not in st.session_state:
 if "errors" not in st.session_state:
     st.session_state.errors = []
 
-# ---- Brevity policy & templates (1–5) ----
-BREVITY = {
-    1: dict(name="Detailed Narrative",  max_tokens=900,  bullets=6,  sections=["Strengths","Areas for Growth","Opportunities","Risks/Concerns"], headline=False),
-    2: dict(name="Structured Summary",  max_tokens=650,  bullets=5,  sections=["Strengths","Areas for Growth","Concerns"],                    headline=False),
-    3: dict(name="Balanced Highlights", max_tokens=450,  bullets=4,  sections=None,                                                             headline=False),
-    4: dict(name="Key Points Only",     max_tokens=250,  bullets=3,  sections=None,                                                             headline=False),
-    5: dict(name="Headline Only",       max_tokens=120,  bullets=0,  sections=None,                                                             headline=True),
-}
+# # ---- Brevity policy & templates (1–5) ----
+# BREVITY = {
+#     1: dict(name="Detailed Narrative",  max_tokens=900,  bullets=6,  sections=["Strengths","Areas for Growth","Opportunities","Risks/Concerns"], headline=False),
+#     2: dict(name="Structured Summary",  max_tokens=650,  bullets=5,  sections=["Strengths","Areas for Growth","Concerns"],                    headline=False),
+#     3: dict(name="Balanced Highlights", max_tokens=450,  bullets=4,  sections=None,                                                             headline=False),
+#     4: dict(name="Key Points Only",     max_tokens=250,  bullets=3,  sections=None,                                                             headline=False),
+#     5: dict(name="Headline Only",       max_tokens=120,  bullets=0,  sections=None,                                                             headline=True),
+# }
+
 # ---------- Sidebar (settings) ----------
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
@@ -131,7 +132,7 @@ with st.sidebar:
 
     with st.expander("Settings", expanded=False):
         # empathy = st.slider("Empathy", 0, 100, 50, 5)
-        brevity = st.slider("Brevity", 1, 5, 3, 1)
+        # brevity = st.slider("Brevity", 1, 5, 3, 1)
         stream_on = st.checkbox("Stream responses", value=True)
         show_timestamps = st.checkbox("Display timestamps", value=True)
 
@@ -148,7 +149,7 @@ with st.sidebar:
     model = r"gpt-4o-mini"
 
     # st.session_state['empathy'] = empathy
-    st.session_state['brevity'] = brevity
+    # st.session_state['brevity'] = brevity
     st.session_state['stream_on'] = stream_on
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
@@ -171,7 +172,7 @@ with st.sidebar:
             "username": username,
             "model": model,
             # "empathy": empathy,
-            "brevity": brevity,
+            # "brevity": brevity,
             "message_count": len(st.session_state.messages),
             "user_notes": user_notes,
             "exported_at": datetime.now().isoformat(),
@@ -266,20 +267,17 @@ with st.sidebar:
     with st.expander("Show Referenced Full Conversation", expanded=True):
         if ref_conversation:
             for i, turn in enumerate(ref_conversation):
-                # Determine if this is a client's turn (usually every other turn)
                 is_client = turn.strip().startswith("Client: ")
-                
                 if is_client:
                     # Right-justify client's messages with custom CSS
                     st.markdown(f"""
-                    <div style="text-align: right; margin-left: 0%; padding: 10px; 
-                    border-radius: 10px;">
+                    <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
                     {turn}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # Default styling for non-client messages
-                    st.markdown(turn)
+                    # Italicize therapist's messages
+                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><em>{turn}</em></div>", unsafe_allow_html=True)
         else:
             st.info("No reference conversation found in 116_P8_conversation.json.")
 
@@ -297,7 +295,7 @@ st.markdown(
             margin-right: 0;
             margin-left: auto;
       }
-      .stChatMessage {padding-top: 0.2rem; padding-bottom: 0.2rem;}
+      .stChatMessage {padding-top: 0rem; padding-bottom: 0rem;}
       .stChatInputContainer {position: sticky; bottom: 0; background: var(--background-color);}
       button[data-testid="stDownloadButton"] {
         background-color: #4F8A8B;
@@ -336,42 +334,42 @@ st.title("TeamMait Private Conversation")
 #         st.markdown(turn)
 
 # ---------- Prompt builder ----------
-def structure_prompt(level:int) -> str:
-    cfg = BREVITY[level]
-    if cfg["headline"]:
-        return (
-            "Output ONE sentence: the single most important clinical takeaway. "
-            "No preamble, no bullets, no quotes."
-        )
-    if cfg["sections"]:
-        # Sectioned bullets for Levels 1–2
-        per = max(1, cfg["bullets"] // len(cfg["sections"]) + 1)
-        sec_lines = "\n".join(f"- {s}: ≤{per} bullets" for s in cfg["sections"])
-        return (
-            "Use sectioned bullets. Each bullet: one actionable point anchored to the transcript; "
-            "start with a strong verb; optional short quote in quotes; ≤25 words per bullet.\n"
-            f"Sections:\n{sec_lines}\n"
-            "No filler, no concluding paragraph."
-        )
-    # Flat bullets for Levels 3–4
-    return (
-        f"Return exactly {cfg['bullets']} bullets. Each bullet ≤25 words, starts with a verb, "
-        "optional (timestamp). No intro or outro."
-    )
+# def structure_prompt(level:int) -> str:
+#     cfg = BREVITY[level]
+#     if cfg["headline"]:
+#         return (
+#             "Output ONE sentence: the single most important clinical takeaway. "
+#             "No preamble, no bullets, no quotes."
+#         )
+#     if cfg["sections"]:
+#         # Sectioned bullets for Levels 1–2
+#         per = max(1, cfg["bullets"] // len(cfg["sections"]) + 1)
+#         sec_lines = "\n".join(f"- {s}: ≤{per} bullets" for s in cfg["sections"])
+#         return (
+#             "Use sectioned bullets. Each bullet: one actionable point anchored to the transcript; "
+#             "start with a strong verb; optional short quote in quotes; ≤25 words per bullet.\n"
+#             f"Sections:\n{sec_lines}\n"
+#             "No filler, no concluding paragraph."
+#         )
+#     # Flat bullets for Levels 3–4
+#     return (
+#         f"Return exactly {cfg['bullets']} bullets. Each bullet ≤25 words, starts with a verb, "
+#         "optional (timestamp). No intro or outro."
+#     )
 
 # def build_system_prompt(empathy_value: int, brevity_level: int) -> str:
-def build_system_prompt( brevity_level: int) -> str:
+def build_system_prompt() -> str:
     return (
         "You are TeamMait, a peer support assistant to a human clinician who is an expert mental health professsional. "
         "You are designed for calm, precise dialogue. "
         "Adopt an academically neutral tone; do not use emojis. "
         # f"The user has specified an empathy target of {empathy_value} out of maximum of 100, with 0 being not empathetic at all (completely stoic) and 100 being the most possible empathy you are capable of without being sychphantic."
-        f"Brevity level: {brevity_level}/5. "
+        # f"Brevity level: {brevity_level}/5. "
         "Prioritize clinical utility: fidelity cues, effective/ineffective moves, missed opportunities, and risk signals. "
         "Anchor claims to transcript content; if no citation exists, say so briefly. "
         "Never invent facts; if uncertain, state the uncertainty briefly. "
         "When clarification is essential, ask for a single, decision-relevant question at the end. "
-        + structure_prompt(brevity_level)
+        # + structure_prompt(brevity_level)
     )
 
 # ---------- Provider clients ----------
@@ -492,9 +490,10 @@ for m in st.session_state.messages:
 st.markdown("</div>", unsafe_allow_html=True)  # close chat-wrapper
 st.markdown("</div>", unsafe_allow_html=True)  # close app-container
 
+
 # ---------- Input ----------
 prompt = st.chat_input("Talk to your TeamMait here...")
-if prompt:
+if prompt is not None and prompt.strip() != "":
     user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
     st.session_state.messages.append(user_msg)
 
@@ -518,10 +517,10 @@ if prompt:
         for i, evidence in enumerate(context_parts, 1):
             st.markdown(f"> {evidence}")
 
-    brev_level = st.session_state["brevity"]
-    cfg = BREVITY[brev_level]
+    # brev_level = st.session_state["brevity"]
+    # cfg = BREVITY[brev_level]
     # system_prompt = build_system_prompt(st.session_state["empathy"], brev_level) + f"""
-    system_prompt = build_system_prompt( brev_level ) + f"""
+    system_prompt = build_system_prompt() + f"""
 
     Use the following session context when answering:
 
@@ -541,7 +540,7 @@ if prompt:
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=True,
-                max_tokens=cfg["max_tokens"],
+                # max_tokens=cfg["max_tokens"],
             ):
                 acc += chunk
                 placeholder.markdown(acc)
@@ -552,7 +551,7 @@ if prompt:
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=False,
-                max_tokens=cfg["max_tokens"],
+                # max_tokens=cfg["max_tokens"],
             )
             st.markdown(reply_text or "")
 
