@@ -386,14 +386,15 @@ def get_secret_then_env(name: str) -> str:
     return val or ""
 
 def get_anthropic_client():
-    if anthropic is None:
-        st.error("anthropic package not installed. Run: pip install anthropic")
-        return None
-    key = get_secret_then_env("ANTHROPIC_API_KEY")
-    if not key:
-        st.error("Missing ANTHROPIC_API_KEY. Set it in .streamlit/secrets.toml or as an environment variable.")
-        return None
-    return anthropic.Anthropic(api_key=key)
+    pass
+    # if anthropic is None:
+    #     st.error("anthropic package not installed. Run: pip install anthropic")
+    #     return None
+    # key = get_secret_then_env("ANTHROPIC_API_KEY")
+    # if not key:
+    #     st.error("Missing ANTHROPIC_API_KEY. Set it in .streamlit/secrets.toml or as an environment variable.")
+    #     return None
+    # return anthropic.Anthropic(api_key=key)
 
 def get_openai_client():
     if OpenAI is None:
