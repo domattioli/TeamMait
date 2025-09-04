@@ -13,7 +13,7 @@ import glob
 
 # ---------- SQLite shim for Chroma ----------
 try:
-    __import__("pysqlite3")
+    import pysqlite3
     sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 except ImportError:
     pass
@@ -155,7 +155,7 @@ with st.sidebar:
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
 
-    # Meta notes
+    # User notes
     # st.markdown("#### Meta Notes")
     # user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
     with st.expander("User Notes", expanded=True):
