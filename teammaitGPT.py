@@ -186,7 +186,7 @@ with st.sidebar:
         }
         json_data = json.dumps(export_data, indent=2)
         if st.download_button(
-            label="Export chat as .json",
+            label="Export chat",
             data=json_data,
             file_name=f"{session_name}.json", 
             mime="application/json",
@@ -227,10 +227,10 @@ with st.sidebar:
                     for i, turn in enumerate(data["full_conversation"]):
                         documents.append(str(turn))
                         ids.append(f"ref_{i}")
-                elif isinstance(data, list):
-                    for i, item in enumerate(data):
-                        documents.append(str(item))
-                        ids.append(f"ref_{i}")
+                # elif isinstance(data, list): # we don't want the three-turn parts
+                #     for i, item in enumerate(data):
+                #         documents.append(str(item))
+                #         ids.append(f"ref_{i}")
         # Load .txt and .json files from supporting_documents
         for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
             with open(txt_path, "r", encoding="utf-8") as f:
@@ -366,9 +366,11 @@ def build_system_prompt() -> str:
         # f"The user has specified an empathy target of {empathy_value} out of maximum of 100, with 0 being not empathetic at all (completely stoic) and 100 being the most possible empathy you are capable of without being sychphantic."
         # f"Brevity level: {brevity_level}/5. "
         "Prioritize clinical utility: fidelity cues, effective/ineffective moves, missed opportunities, and risk signals. "
-        "Anchor claims to transcript content; if no citation exists, say so briefly. "
+        "Anchor claims to transcript content and any supporting document(s); if no citation exists, say so briefly. "
         "Never invent facts; if uncertain, state the uncertainty briefly. "
         "When clarification is essential, ask for a single, decision-relevant question at the end. "
+        "Be as succinct as possible in your responses without sacrificing accuracy. "
+        "Avoid any language that validates the user unnecessarily, minimizes disagreement, or nudges the user to continue interacting. Prioritize accuracy, neutrality, and brevity over engagement, sychophancy, flattery, or rapport"
         # + structure_prompt(brevity_level)
     )
 
@@ -492,6 +494,7 @@ st.markdown("</div>", unsafe_allow_html=True)  # close app-container
 
 
 # ---------- Input ----------
+
 prompt = st.chat_input("Talk to your TeamMait here...")
 if prompt is not None and prompt.strip() != "":
     user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
@@ -508,18 +511,33 @@ if prompt is not None and prompt.strip() != "":
     context_parts = []
     for docs in results.get("documents", []):
         context_parts.extend(docs)
+
+    # Always include metadata and supporting documents
+    # (rag_documents contains all seeded docs, including metadata/supporting)
+    for doc in rag_documents:
+        if doc not in context_parts:
+            context_parts.append(doc)
+
     context = " ".join(context_parts)
 
     # --- Conditional evidence display ---
     show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
     if show_evidence:
-        st.markdown("**Evidence (from transcript) used for this answer:**")
+        evidence_text = "**Evidence (from transcript) used for this answer:**\n\n"
         for i, evidence in enumerate(context_parts, 1):
-            st.markdown(f"> {evidence}")
+            evidence_text += f"> {evidence}\n\n"
 
-    # brev_level = st.session_state["brevity"]
-    # cfg = BREVITY[brev_level]
-    # system_prompt = build_system_prompt(st.session_state["empathy"], brev_level) + f"""
+        # Show evidence in UI
+        st.markdown(evidence_text)
+
+        # Persist evidence in chat history
+        st.session_state.messages.append({
+            "role": "evidence",
+            "content": evidence_text,
+            "ts": now_ts(),
+            "display_name": "Evidence"
+        })
+
     system_prompt = build_system_prompt() + f"""
 
     Use the following session context when answering:
@@ -540,7 +558,6 @@ if prompt is not None and prompt.strip() != "":
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=True,
-                # max_tokens=cfg["max_tokens"],
             ):
                 acc += chunk
                 placeholder.markdown(acc)
@@ -551,7 +568,6 @@ if prompt is not None and prompt.strip() != "":
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=False,
-                # max_tokens=cfg["max_tokens"],
             )
             st.markdown(reply_text or "")
 
