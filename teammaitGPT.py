@@ -72,6 +72,50 @@ BOT_SVG = svg_data_uri(
 def now_ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
+# ---------- Feedback Functions ----------
+def collect_feedback(message_id, response_text):
+    """Add feedback buttons after each bot response"""
+    col1, col2, col3 = st.columns([1, 1, 8])
+    
+    with col1:
+        if st.button("👍", key=f"up_{message_id}", help="Good response"):
+            store_feedback(message_id, "positive", response_text)
+            st.success("Thanks!")
+    
+    with col2:
+        if st.button("👎", key=f"down_{message_id}", help="Poor response"):
+            store_feedback(message_id, "negative", response_text)
+            st.warning("Thanks for the feedback")
+
+def store_feedback(message_id, rating, response_text, detail_text=""):
+    """Store feedback data"""
+    feedback = {
+        'message_id': message_id,
+        'rating': rating,
+        'response_text': response_text[:100] + "..." if len(response_text) > 100 else response_text,
+        'username': st.session_state.get('username', 'unknown'),
+        'model': st.session_state.get('model', 'unknown'),
+        'timestamp': datetime.now().isoformat(),
+        'session_id': id(st.session_state)  # Simple session identifier
+    }
+    
+    st.session_state.feedback_data.append(feedback)
+    
+    # Also save to Google Sheets alongside your existing chat data
+    try:
+        feedback_row = [
+            feedback['message_id'],
+            feedback['rating'], 
+            feedback['response_text'],
+            feedback['username'],
+            feedback['model'],
+            feedback['timestamp']
+        ]
+        # You might want a separate sheet for feedback or add to existing
+        sheet.append_row(feedback_row)
+    except Exception as e:
+        st.session_state.errors.append({"when": now_ts(), "msg": f"Feedback save error: {e}"})
+
 # ---------- Login dialog ----------
 @st.dialog("Login", dismissible=False, width="small")
 def get_user_details():
@@ -115,55 +159,39 @@ if "messages" not in st.session_state:
     ]
 if "errors" not in st.session_state:
     st.session_state.errors = []
-
-# # ---- Brevity policy & templates (1–5) ----
-# BREVITY = {
-#     1: dict(name="Detailed Narrative",  max_tokens=900,  bullets=6,  sections=["Strengths","Areas for Growth","Opportunities","Risks/Concerns"], headline=False),
-#     2: dict(name="Structured Summary",  max_tokens=650,  bullets=5,  sections=["Strengths","Areas for Growth","Concerns"],                    headline=False),
-#     3: dict(name="Balanced Highlights", max_tokens=450,  bullets=4,  sections=None,                                                             headline=False),
-#     4: dict(name="Key Points Only",     max_tokens=250,  bullets=3,  sections=None,                                                             headline=False),
-#     5: dict(name="Headline Only",       max_tokens=120,  bullets=0,  sections=None,                                                             headline=True),
-# }
+if "feedback_data" not in st.session_state:
+    st.session_state.feedback_data = []
 
 # ---------- Sidebar (settings) ----------
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
     st.markdown(f"**Email:** {email}")
-    # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
 
     with st.expander("Settings", expanded=False):
-        # empathy = st.slider("Empathy", 0, 100, 50, 5)
-        # brevity = st.slider("Brevity", 1, 5, 3, 1)
         stream_on = st.checkbox("Stream responses", value=True)
         show_timestamps = st.checkbox("Display timestamps", value=True)
 
-    # model = st.selectbox(
-    #     "model",
-    #     [
-    #         "gpt-4o-mini",
-    #         "claude-3-5-sonnet-20240620",
-    #         "claude-3-5-haiku-20241022",
-    #         "claude-3-opus-20240229",
-    #     ],
-    #     index=0,
-    # )
     model = r"gpt-4o-mini"
 
-    # st.session_state['empathy'] = empathy
-    # st.session_state['brevity'] = brevity
     st.session_state['stream_on'] = stream_on
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
 
     # User notes
-    # st.markdown("#### Meta Notes")
-    # user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
     with st.expander("User Notes", expanded=True):
         user_notes = st.text_area("Enter any feedback you have for the TeamMait here:", height=180)
 
+    # Feedback analytics
+    if st.session_state.feedback_data:
+        with st.expander("Feedback Summary", expanded=False):
+            total_feedback = len(st.session_state.feedback_data)
+            positive_feedback = len([f for f in st.session_state.feedback_data if f['rating'] == 'positive'])
+            if total_feedback > 0:
+                positive_rate = (positive_feedback / total_feedback) * 100
+                st.metric("Positive Feedback Rate", f"{positive_rate:.1f}%")
+                st.caption(f"Total feedback: {total_feedback}")
+
     # Exporting
-    # st.caption("Export data as a .json file")
-    # session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
     with st.expander( "Save Data", expanded=True):
         session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
 
@@ -172,8 +200,6 @@ with st.sidebar:
             "session_name": session_name,
             "username": username,
             "model": model,
-            # "empathy": empathy,
-            # "brevity": brevity,
             "message_count": len(st.session_state.messages),
             "user_notes": user_notes,
             "exported_at": datetime.now().isoformat(),
@@ -182,6 +208,7 @@ with st.sidebar:
         export_data = {
             "metadata": metadata,
             "messages": st.session_state.messages,
+            "feedback": st.session_state.feedback_data,
             "errors": st.session_state.errors,
         }
         json_data = json.dumps(export_data, indent=2)
@@ -198,7 +225,6 @@ with st.sidebar:
             # Save to Google Sheets
             sheet.append_row([json.dumps(messages), timestamp])
 
-    # st.divider()
     # ---------- Chroma initialization (after login) ----------
     embed_model = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
@@ -227,10 +253,6 @@ with st.sidebar:
                     for i, turn in enumerate(data["full_conversation"]):
                         documents.append(str(turn))
                         ids.append(f"ref_{i}")
-                # elif isinstance(data, list): # we don't want the three-turn parts
-                #     for i, item in enumerate(data):
-                #         documents.append(str(item))
-                #         ids.append(f"ref_{i}")
         # Load .txt and .json files from supporting_documents
         for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
             with open(txt_path, "r", encoding="utf-8") as f:
@@ -306,6 +328,22 @@ st.markdown(
       button[data-testid="stDownloadButton"]:hover {
         background-color: #306B6B;
       }
+      .feedback-container {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+      }
+      .feedback-btn {
+        background: none;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.2rem 0.5rem;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .feedback-btn:hover {
+        background-color: #f0f0f0;
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -314,65 +352,19 @@ st.markdown(
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
 st.title("TeamMait Private Conversation")
 
-
-# # ---------- Load JSON Conversation into Vector Store ----------
-# @st.cache_resource
-# def load_conversation_and_seed():
-#     with open("116_P8_conversation.json") as f:
-#         data = json.load(f)
-#     if collection.count() == 0:
-#         for i, turn in enumerate(data.get("full_conversation", [])):
-#             collection.add(documents=[turn], ids=[f"conv_{i}"])
-#     return data
-
-# data = load_conversation_and_seed()
-
-# # ---------- Reference Conversation (expander) ----------
-# conversation = data.get("full_conversation", [])
-# with st.expander("Show Referenced Full Conversation", expanded=False):
-#     for turn in conversation:
-#         st.markdown(turn)
-
 # ---------- Prompt builder ----------
-# def structure_prompt(level:int) -> str:
-#     cfg = BREVITY[level]
-#     if cfg["headline"]:
-#         return (
-#             "Output ONE sentence: the single most important clinical takeaway. "
-#             "No preamble, no bullets, no quotes."
-#         )
-#     if cfg["sections"]:
-#         # Sectioned bullets for Levels 1–2
-#         per = max(1, cfg["bullets"] // len(cfg["sections"]) + 1)
-#         sec_lines = "\n".join(f"- {s}: ≤{per} bullets" for s in cfg["sections"])
-#         return (
-#             "Use sectioned bullets. Each bullet: one actionable point anchored to the transcript; "
-#             "start with a strong verb; optional short quote in quotes; ≤25 words per bullet.\n"
-#             f"Sections:\n{sec_lines}\n"
-#             "No filler, no concluding paragraph."
-#         )
-#     # Flat bullets for Levels 3–4
-#     return (
-#         f"Return exactly {cfg['bullets']} bullets. Each bullet ≤25 words, starts with a verb, "
-#         "optional (timestamp). No intro or outro."
-#     )
-
-# def build_system_prompt(empathy_value: int, brevity_level: int) -> str:
 def build_system_prompt() -> str:
     return (
         "You are TeamMait, a peer support assistant to a human clinician who is an expert mental health professsional. "
         "You are designed for calm, precise dialogue. "
         "Keep the discussion tied to the review, assessment, and or evaluation of the skills demonstrated by the therapist transcribed in the referenced conversation. If questions are asked broadly about mental health subjects, then provide the briefest answer as possible (if it is adjacently relevant) before politely and gently refocus the conversation to remain on-topic by asking if they have other questions related to the conversation or the therapist's performance."
         "Adopt an academically neutral tone; do not use emojis. "
-        # f"The user has specified an empathy target of {empathy_value} out of maximum of 100, with 0 being not empathetic at all (completely stoic) and 100 being the most possible empathy you are capable of without being sychphantic."
-        # f"Brevity level: {brevity_level}/5. "
         "Prioritize clinical utility: fidelity cues, effective/ineffective moves, missed opportunities, and risk signals. "
         "Anchor claims to transcript content and any supporting document(s); if no citation exists, say so briefly. "
         "Never invent facts; if uncertain, state the uncertainty briefly. "
         "When clarification is essential, ask for a single, decision-relevant question at the end. "
         "Be as succinct as possible in your responses without sacrificing accuracy. "
         "Avoid any language that validates the user unnecessarily, minimizes disagreement, or nudges the user to continue interacting. Prioritize accuracy, neutrality, and brevity over engagement, sychophancy, flattery, or rapport"
-        # + structure_prompt(brevity_level)
     )
 
 # ---------- Provider clients ----------
@@ -388,14 +380,6 @@ def get_secret_then_env(name: str) -> str:
 
 def get_anthropic_client():
     pass
-    # if anthropic is None:
-    #     st.error("anthropic package not installed. Run: pip install anthropic")
-    #     return None
-    # key = get_secret_then_env("ANTHROPIC_API_KEY")
-    # if not key:
-    #     st.error("Missing ANTHROPIC_API_KEY. Set it in .streamlit/secrets.toml or as an environment variable.")
-    #     return None
-    # return anthropic.Anthropic(api_key=key)
 
 def get_openai_client():
     if OpenAI is None:
@@ -479,7 +463,7 @@ def openai_complete(history, system_text, model_name, stream=False, max_tokens=5
 # ---------- Chat history (scrollable) ----------
 st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
 
-for m in st.session_state.messages:
+for i, m in enumerate(st.session_state.messages):
     role = m["role"]
     avatar = BOT_SVG if role == "assistant" else DM_SVG
     css_class = "assistant" if role == "assistant" else "user"
@@ -489,6 +473,12 @@ for m in st.session_state.messages:
         if st.session_state.get("show_timestamps", False) and "ts" in m:
             st.caption(m["ts"])
         st.markdown(m["content"])
+        
+        # Add feedback buttons only for assistant messages
+        if role == "assistant" and m.get("content", "").strip():
+            message_id = f"msg_{i}_{hash(m.get('content', ''))}"
+            collect_feedback(message_id, m["content"])
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)  # close chat-wrapper
@@ -508,14 +498,14 @@ if prompt is not None and prompt.strip() != "":
         st.markdown(prompt)
 
     # ---------- Retrieve context from vector DB ----------
-    results = collection.query(query_texts=[prompt], n_results=5)
+    results = collection.query(query_texts=[prompt], n_results=3)
     # results["documents"] is a list of lists
-    retrieved_parts = []
+    context_parts = []
     for docs in results.get("documents", []):
-        retrieved_parts.extend(docs)
+        context_parts.extend(docs)
 
-    # Always include metadata and supporting documents in the context for answering
-    context_parts = list(retrieved_parts)
+    # Always include metadata and supporting documents
+    # (rag_documents contains all seeded docs, including metadata/supporting)
     for doc in rag_documents:
         if doc not in context_parts:
             context_parts.append(doc)
@@ -526,7 +516,7 @@ if prompt is not None and prompt.strip() != "":
     show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
     if show_evidence:
         evidence_text = "**Evidence (from transcript) used for this answer:**\n\n"
-        for i, evidence in enumerate(retrieved_parts, 1):
+        for i, evidence in enumerate(context_parts, 1):
             evidence_text += f"> {evidence}\n\n"
 
         # Show evidence in UI
