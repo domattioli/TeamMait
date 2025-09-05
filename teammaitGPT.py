@@ -508,14 +508,14 @@ if prompt is not None and prompt.strip() != "":
         st.markdown(prompt)
 
     # ---------- Retrieve context from vector DB ----------
-    results = collection.query(query_texts=[prompt], n_results=3)
+    results = collection.query(query_texts=[prompt], n_results=5)
     # results["documents"] is a list of lists
-    context_parts = []
+    retrieved_parts = []
     for docs in results.get("documents", []):
-        context_parts.extend(docs)
+        retrieved_parts.extend(docs)
 
-    # Always include metadata and supporting documents
-    # (rag_documents contains all seeded docs, including metadata/supporting)
+    # Always include metadata and supporting documents in the context for answering
+    context_parts = list(retrieved_parts)
     for doc in rag_documents:
         if doc not in context_parts:
             context_parts.append(doc)
@@ -526,7 +526,7 @@ if prompt is not None and prompt.strip() != "":
     show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
     if show_evidence:
         evidence_text = "**Evidence (from transcript) used for this answer:**\n\n"
-        for i, evidence in enumerate(context_parts, 1):
+        for i, evidence in enumerate(retrieved_parts, 1):
             evidence_text += f"> {evidence}\n\n"
 
         # Show evidence in UI
