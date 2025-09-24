@@ -170,7 +170,7 @@ with st.sidebar:
             # "empathy": empathy,
             # "brevity": brevity,
             "message_count": len(st.session_state.messages),
-            "user_notes": user_notes,
+            #"user_notes": user_notes,
             "exported_at": datetime.now().isoformat(),
         }
 
