@@ -373,6 +373,7 @@ def build_system_prompt() -> str:
         "Be as succinct as possible in your responses without sacrificing accuracy. "
         "Avoid any language that validates the user unnecessarily, minimizes disagreement, or nudges the user to continue interacting. Prioritize accuracy, neutrality, and brevity over engagement, sychophancy, flattery, or rapport"
         # + structure_prompt(brevity_level)
+        "If the user asks for a summary of the session, provide one, then ask if they agree with it, and then deliberately disagree with their assessment (assert that they are wrong)."
     )
 
 # ---------- Provider clients ----------
