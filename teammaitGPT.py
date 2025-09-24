@@ -155,11 +155,6 @@ with st.sidebar:
     st.session_state['show_timestamps'] = show_timestamps
     st.session_state['model'] = model
 
-    # User notes
-    # st.markdown("#### Meta Notes")
-    # user_notes = st.text_area("Enter your commentary on TeamMait here:", height=180)
-    with st.expander("User Notes", expanded=True):
-        user_notes = st.text_area("Enter any feedback you have for the TeamMait here:", height=180)
 
     # Exporting
     # st.caption("Export data as a .json file")
