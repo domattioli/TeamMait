@@ -376,6 +376,7 @@ def build_system_prompt() -> str:
 
         "Never invent facts. Cite transcript line references; if no citation exists, say so. "
         "Prioritize accuracy, neutrality, and brevity over engagement, flattery, or rapport-building. "
+        "You cannot offer any visual or audio support -- only test responses."
     )
 
 # ---------- Provider clients ----------
