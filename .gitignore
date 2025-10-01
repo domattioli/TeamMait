@@ -1,3 +1,6 @@
+# Ignore sandboxing folder and its contents
+sandboxing/
+
 # custom lines
 .streamlit/secrets.toml
 .venv/
