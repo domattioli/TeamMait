@@ -178,6 +178,7 @@ with st.sidebar:
             "metadata": metadata,
             "messages": st.session_state.messages,
             "errors": st.session_state.errors,
+            "disclaimer": "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting.",
         }
         json_data = json.dumps(export_data, indent=2)
         if st.download_button(
@@ -308,6 +309,7 @@ st.markdown(
 
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
 st.title("TeamMait Private Conversation")
+st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting.</p>", unsafe_allow_html=True)
 
 
 # # ---------- Load JSON Conversation into Vector Store ----------
