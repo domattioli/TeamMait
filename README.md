@@ -3,14 +3,14 @@ Trustworthy, Explainable, and Adaptive Monitoring Machine for AI Teams
 
 # TeamMait Three-Page Implementation
 
-## 📁 File Structure
+## File Structure
 
 ```
 your_app/
 ├── Home.py                          # Landing page (login, instructions, consent)
 ├── pages/
-│   ├── 1_💬_Open_Chat.py           # Free-form conversation (your current app)
-│   └── 2_📋_Guided_Review.py       # Structured flowchart interaction
+│   ├── 1_Open_Chat.py           # Free-form conversation (your current app)
+│   └── 2_Guided_Review.py       # Structured flowchart interaction
 ├── utils/
 │   ├── __init__.py                 # Package marker
 │   ├── rag_setup.py                # Shared RAG/ChromaDB logic
@@ -25,7 +25,7 @@ your_app/
 └── requirements.txt
 ```
 
-## 🚀 How It Works
+## How It Works
 
 ### Page 1: Home.py (Landing Page)
 - **Login dialog** captures username, email, and consent
@@ -51,7 +51,7 @@ Implements the flowchart with these stages:
 5. **Anything Else?** → Ask if user wants to discuss more
 6. **Loop or Complete** → Either show next question or end session
 
-## 🔄 Flowchart State Machine
+## Flowchart State Machine
 
 The `flowchart_logic.py` manages transitions:
 
@@ -65,7 +65,7 @@ The `flowchart_logic.py` manages transitions:
 | `anything_else` | "No" | `prompt` OR `complete` | Next question or end |
 | `anything_else` | "Yes, about..." | `anything_else` | Open-ended LLM chat |
 
-## 🎯 Key Features
+## Key Features
 
 ### Shared Utilities
 - **rag_setup.py**: Single source of truth for ChromaDB and document loading
@@ -82,7 +82,7 @@ The `flowchart_logic.py` manages transitions:
 - JSON format includes metadata, messages, and state
 - Google Sheets integration maintained
 
-## 🛠️ Setup Instructions
+## Setup Instructions
 
 1. **Install dependencies:**
    ```bash
@@ -104,7 +104,7 @@ The `flowchart_logic.py` manages transitions:
    streamlit run Home.py
    ```
 
-## 📝 Customization Tips
+## Customization Tips
 
 ### Adding More Questions
 Edit `doc/interaction_prompts/interaction_prompts.json`:
@@ -141,7 +141,7 @@ Add custom CSS in each page file using `st.markdown()` with `unsafe_allow_html=T
 **Problem**: Questions repeat in guided review
 - **Solution**: Check that `questions_asked` list is being updated in session state
 
-## 📊 Session State Variables
+## Session State Variables
 
 ### Global (All Pages)
 - `user_info`: {username, email, consent_given, consent_timestamp}
@@ -165,7 +165,7 @@ Add custom CSS in each page file using `st.markdown()` with `unsafe_allow_html=T
   - `all_domains_covered`: Boolean for completion
 }
 
-## 🎨 UI Enhancements
+## UI Enhancements
 
 The guided review includes:
 - **Progress bar** showing questions completed
@@ -174,7 +174,7 @@ The guided review includes:
 - **Completion message** when all questions reviewed
 - **Restart functionality** to begin new session
 
-## 🔐 Privacy & Consent
+## Privacy & Consent
 
 The home page captures:
 - Username and email (required)
