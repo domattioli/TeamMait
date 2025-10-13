@@ -33,7 +33,7 @@ except ImportError:
     OpenAI = None
 
 # ---------- Page & Theme ----------
-st.set_page_config(page_title="TeamMait Private Conversation", page_icon="💬", layout="wide")
+st.set_page_config(page_title="TeamMait Private Conversation", page_icon="", layout="wide")
 
 # ---------- Simple avatars (SVG data URIs) ----------
 from urllib.parse import quote as _quote  # noqa: E402
@@ -76,16 +76,16 @@ def now_ts() -> str:
 @st.dialog("Login", dismissible=False, width="small")
 def get_user_details():
     username = st.text_input("Username")
-    email = st.text_input("Email")
+    password = st.text_input("password")
     submit = st.button("Submit", type="primary")
     if submit:
-        if not username or not email:
-            st.warning("Please enter both a username and an email.")
+        if not username or not password:
+            st.warning("Please enter both a username and a password.")
             return
-        st.session_state.user_info = {"username": username, "email": email}
+        st.session_state.user_info = {"username": username, "password": password}
         # also mirror to top-level keys for convenience
         st.session_state["username"] = username
-        st.session_state["email"] = email
+        st.session_state["password"] = password
         st.rerun()
 
 if "user_info" not in st.session_state:
@@ -94,7 +94,7 @@ if "user_info" not in st.session_state:
 
 # ---------- Now that we have user_info, continue ----------
 username = st.session_state["user_info"]["username"]
-email = st.session_state["user_info"]["email"]
+password = st.session_state["user_info"]["password"]
 
 # ---------- Databasing (quick and sloppy) ----------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -108,7 +108,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript? It can be found in the left side panel. When you're done, please make sure to save the chat!",
+            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript. It can be found in the left side panel. When you're done, please make sure to save the chat!",
             "ts": now_ts(),
             "display_name": "TeamMait",
         }
@@ -128,7 +128,6 @@ if "errors" not in st.session_state:
 # ---------- Sidebar (settings) ----------
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
-    st.markdown(f"**Email:** {email}")
     # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
 
     with st.expander("Settings", expanded=False):
@@ -137,16 +136,6 @@ with st.sidebar:
         stream_on = st.checkbox("Stream responses", value=True)
         show_timestamps = st.checkbox("Display timestamps", value=True)
 
-    # model = st.selectbox(
-    #     "model",
-    #     [
-    #         "gpt-4o-mini",
-    #         "claude-3-5-sonnet-20240620",
-    #         "claude-3-5-haiku-20241022",
-    #         "claude-3-opus-20240229",
-    #     ],
-    #     index=0,
-    # )
     model = r"gpt-4o-mini"
 
     # st.session_state['empathy'] = empathy
@@ -156,43 +145,22 @@ with st.sidebar:
     st.session_state['model'] = model
 
 
-    # Exporting
-    # st.caption("Export data as a .json file")
-    # session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
-    with st.expander( "Save Data", expanded=True):
-        session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
+    # Initialize completion status if it doesn't exist
+    if "completion_status" not in st.session_state:
+        st.session_state["completion_status"] = {}
+    
+    # Sync the checkbox state with the persistent completion tracker
+    persistent_value = st.session_state["completion_status"].get("open_chat", False)
+    st.session_state["include_open_chat"] = persistent_value
 
-        metadata = {
-            "app_name": "TeamMait Open-Ended Chat",
-            "session_name": session_name,
-            "username": username,
-            "model": model,
-            # "empathy": empathy,
-            # "brevity": brevity,
-            "message_count": len(st.session_state.messages),
-            #"user_notes": user_notes,
-            "exported_at": datetime.now().isoformat(),
-        }
+    def _on_include_open_change():
+        from utils.streamlit_compat import debug_trace
+        # Update the persistent completion tracker when checkbox changes
+        current_value = st.session_state.get("include_open_chat", False)
+        st.session_state["completion_status"]["open_chat"] = current_value
+        debug_trace("completion_status.open_chat", current_value, "Open Chat")
 
-        export_data = {
-            "metadata": metadata,
-            "messages": st.session_state.messages,
-            "errors": st.session_state.errors,
-            "disclaimer": "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting.",
-        }
-        json_data = json.dumps(export_data, indent=2)
-        if st.download_button(
-            label="Export chat",
-            data=json_data,
-            file_name=f"{session_name}.json", 
-            mime="application/json",
-            type="primary",
-        ):
-            # Prepare export data
-            messages = st.session_state.messages
-            timestamp = datetime.now().isoformat()
-            # Save to Google Sheets
-            sheet.append_row([json.dumps(messages), timestamp])
+    st.checkbox("Check this when done", key="include_open_chat", on_change=_on_include_open_change)
 
     # st.divider()
     # ---------- Chroma initialization (after login) ----------
@@ -309,7 +277,7 @@ st.markdown(
 
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
 st.title("TeamMait Private Conversation")
-st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting.</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information..</p>", unsafe_allow_html=True)
 
 
 # # ---------- Load JSON Conversation into Vector Store ----------

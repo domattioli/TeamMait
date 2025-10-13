@@ -156,43 +156,14 @@ with st.sidebar:
     st.session_state['model'] = model
 
 
-    # Exporting
-    # st.caption("Export data as a .json file")
-    # session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
-    with st.expander( "Save Data", expanded=True):
-        session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
+    # Instead of exporting per-page, offer an "include in consolidated export" checkbox.
+    if "include_open_chat" not in st.session_state:
+        st.session_state["include_open_chat"] = False
+    def _on_include_open_change():
+        from utils.streamlit_compat import safe_rerun
+        safe_rerun()
 
-        metadata = {
-            "app_name": "TeamMait Open-Ended Chat",
-            "session_name": session_name,
-            "username": username,
-            "model": model,
-            # "empathy": empathy,
-            # "brevity": brevity,
-            "message_count": len(st.session_state.messages),
-            #"user_notes": user_notes,
-            "exported_at": datetime.now().isoformat(),
-        }
-
-        export_data = {
-            "metadata": metadata,
-            "messages": st.session_state.messages,
-            "errors": st.session_state.errors,
-            "disclaimer": "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting.",
-        }
-        json_data = json.dumps(export_data, indent=2)
-        if st.download_button(
-            label="Export chat",
-            data=json_data,
-            file_name=f"{session_name}.json", 
-            mime="application/json",
-            type="primary",
-        ):
-            # Prepare export data
-            messages = st.session_state.messages
-            timestamp = datetime.now().isoformat()
-            # Save to Google Sheets
-            sheet.append_row([json.dumps(messages), timestamp])
+    st.checkbox("Check this when Finished", key="include_open_chat", on_change=_on_include_open_change)
 
     # st.divider()
     # ---------- Chroma initialization (after login) ----------
