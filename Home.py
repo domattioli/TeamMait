@@ -11,7 +11,7 @@ st.set_page_config(
 def load_valid_users():
     """Load valid users from users.json file"""
     try:
-        with open("users.json", "r") as f:
+        with open("doc/users.json", "r") as f:
             data = json.load(f)
             return data.get("users", [])
     except FileNotFoundError:
