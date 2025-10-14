@@ -750,10 +750,10 @@ Please provide the specific analysis that was offered in the previous message. F
             }
         else:
             # For unclear responses, use LLM to respond naturally
-            current_prompt = st.session_state.current_prompt
+            current_prompt = st.session_state.flowchart_state.get("current_question", {})
             context = f"""The user said: "{user_input}"
 
-I just shared this observation about their therapy session: {current_prompt['assertion']} {current_prompt['explanation']}
+I just shared this observation about their therapy session: {current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}
 
 The user's response doesn't clearly indicate if they accept, want to correct, want clarification, or want to disregard my observation. Please respond naturally and conversationally, asking them to clarify what they mean or help them engage with the observation. Don't mention response categories - just have a natural conversation to understand what they're thinking."""
             
@@ -764,7 +764,7 @@ The user's response doesn't clearly indicate if they accept, want to correct, wa
                 "show_feedback_buttons": True,
                 "use_llm": True,
                 "api_context": context,
-                "conversation_context": f"Clarifying unclear response about: {current_prompt['assertion']}"
+                "conversation_context": f"Clarifying unclear response about: {current_prompt.get('assertion', '')}"
             }
     
     elif stage == "open_discussion":
