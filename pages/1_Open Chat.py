@@ -112,7 +112,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript. It can be found in the left side panel. When you're done, please make sure to save the chat!",
+            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript, which may be found in the left side panel.",
             "ts": now_ts(),
             "display_name": "TeamMait",
         }
