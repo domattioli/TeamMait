@@ -91,18 +91,38 @@ Both phases will be followed by brief surveys about your experience (~10 minutes
 
 ---
 
-### Privacy & Consent
-            
-**Research Participation Notice**: By proceeding, you acknowledge that:
+### Research Consent & Privacy Notice
 
-- **Data Collection**: All interactions with TeamMait are logged for research purposes to improve AI-assisted clinical supervision
-- **Anonymization**: Your responses will be anonymized in any publications or research outputs
-- **Voluntary Participation**: You may discontinue participation at any time without penalty
-- **Transcript Review**: You will be reviewing therapy session transcripts as part of this research study
-- **Time Commitment**: Total participation time is approximately 50 minutes (40 minutes interaction + 10 minutes surveys)
-- **Research Purpose**: This study aims to understand how AI can best support clinical supervision and training
+#### Study Purpose
+This research study investigates how artificial intelligence can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
 
-**Your participation helps advance AI-assisted clinical supervision tools for the therapy community.**
+#### What You Will Do
+- **Review Process**: You will interact with TeamMait while reviewing an anonymized therapy session transcript
+- **Two Interaction Phases**: Participate in both open-ended chat and guided observation discussions
+- **Brief Surveys**: Complete short questionnaires about your experience (approximately 10 minutes total)
+- **Total Time**: Approximately 50 minutes (40 minutes interaction + 10 minutes surveys)
+
+#### Data Collection & Privacy
+- **Interaction Logging**: All conversations with TeamMait are recorded for research analysis
+- **Anonymization**: Your identity will be removed from all data used in research publications or presentations
+- **Data Security**: All data is stored securely and will only be accessed by authorized research personnel
+- **No Clinical Information**: You will not share any personal client information during this study
+
+#### Your Rights
+- **Voluntary Participation**: Your participation is completely voluntary
+- **Right to Withdraw**: You may discontinue participation at any time without explanation or penalty
+- **Questions Welcome**: You may ask questions about the study at any point
+- **No Direct Benefits**: While there are no direct benefits to you, your participation contributes to advancing clinical training tools
+
+#### Professional Context
+This study is designed for licensed mental health professionals with expertise in Prolonged Exposure (PE) therapy. Your clinical knowledge and experience are valuable for evaluating AI-assisted supervision tools.
+
+#### Contact Information
+If you have questions about this research study, please contact the research team through your institutional channels.
+
+---
+
+**By checking the consent box below, you acknowledge that you have read and understood this information and agree to participate in this research study.**
 """)
 
 # Initialize completion status if it doesn't exist
