@@ -199,7 +199,7 @@ Respond with ONLY "yes" or "no"."""
             self.questions_asked.append(next_question)
             self.current_question = next_question
             
-            formatted_response = f"**{next_question.get('assertion', '')}**\n\n{next_question.get('explanation', '')}"
+            formatted_response = f"{next_question.get('assertion', '')}\n\n{next_question.get('explanation', '')}\n\n{next_question.get('invitation', '')}"
             
             return StateTransition(
                 next_state=ChatbotState.QUESTION_PRESENTATION,
@@ -616,12 +616,15 @@ for m in st.session_state.guided_messages:
         st.markdown(m["content"])
 
 # Response buttons
+st.write(f"DEBUG: Current state is {st.session_state.state_machine.current_state}")  # Debug line
+
 def handle_button_click(response_type: str):
     """Handle quick response button clicks."""
     st.session_state.state_machine.button_clicked = response_type
     st.rerun()
 
 if st.session_state.state_machine.current_state == ChatbotState.QUESTION_PRESENTATION:
+    st.write(f"DEBUG: In QUESTION_PRESENTATION state") # Debug line
     st.markdown("##### Grade Response (optional):")
     cols = st.columns(2)
     
