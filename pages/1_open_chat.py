@@ -134,12 +134,9 @@ with st.sidebar:
     st.markdown(f"**Username:** {username}")
     # st.button("Clear chat", type="secondary", on_click=lambda: st.session_state.update(messages=[]))
 
-    with st.expander("Settings", expanded=False):
-        # empathy = st.slider("Empathy", 0, 100, 50, 5)
-        # brevity = st.slider("Brevity", 1, 5, 3, 1)
-        stream_on = st.checkbox("Stream responses", value=True)
-        show_timestamps = st.checkbox("Display timestamps", value=True)
-
+    # Settings moved to hidden/default values
+    stream_on = True
+    show_timestamps = True
     model = r"gpt-4o-mini"
 
     # st.session_state['empathy'] = empathy
