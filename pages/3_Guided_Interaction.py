@@ -907,14 +907,14 @@ with st.sidebar:
     st.progress(min(questions_asked / 4, 1.0))
     st.caption(f"{questions_asked} / 4 questions reviewed")
     
-    # Copy settings from Open Chat
-    with st.expander("Settings", expanded=False):
-        stream_on = st.checkbox("Stream responses", value=True)
-        show_timestamps = st.checkbox("Display timestamps", value=True)
-        model = r"gpt-4o-mini"
-        st.session_state['stream_on'] = stream_on
-        st.session_state['show_timestamps'] = show_timestamps
-        st.session_state['model'] = model
+    # Settings set to default values (hidden from UI)
+    stream_on = True
+    show_timestamps = True
+    model = r"gpt-4o-mini"
+    st.session_state['stream_on'] = stream_on
+    st.session_state['show_timestamps'] = show_timestamps
+    st.session_state['model'] = model
+    
     # Show reference conversation (expanded by default)
     with st.expander("Show Reference Conversation", expanded=True):
         ref_conversation = load_reference_conversation()
