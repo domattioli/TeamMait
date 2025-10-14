@@ -699,10 +699,31 @@ def handle_flowchart_transition(user_input: str) -> dict:
             print(f"DEBUG: Accept analysis: {accept_analysis}")
             if accept_analysis:
                 # Provide the requested analysis using LLM with specific context
-                current_prompt = st.session_state.flowchart_state.get("current_question", {})
-                analysis_context = f"""The user has requested an analysis. Based on the previous observation: "{current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}"
+                # Extract the specific analysis topic from the last message
+                last_message_content = st.session_state.guided_messages[-1]["content"]
+                
+                # Try to extract what analysis was specifically offered
+                analysis_topic = "the session"  # default
+                if "rapport and empathic connection" in last_message_content.lower():
+                    analysis_topic = "rapport and empathic connection across the session"
+                elif "therapeutic alliance" in last_message_content.lower():
+                    analysis_topic = "therapeutic alliance in the session"
+                elif "pacing" in last_message_content.lower():
+                    analysis_topic = "pacing and timing in the session"
+                elif "exposure" in last_message_content.lower():
+                    analysis_topic = "exposure techniques used in the session"
+                
+                analysis_context = f"""The user has accepted your offer to provide an analysis about {analysis_topic}. 
 
-Please provide the specific analysis that was offered in the previous message. Focus on the particular aspect mentioned in the analysis offer and provide detailed, evidence-based insights from the transcript with line number citations."""
+Your previous message offered: "{last_message_content}"
+
+Now provide the detailed, specific analysis that you offered. Focus on {analysis_topic} with:
+- Specific evidence from the transcript with line number citations
+- Clear observations about therapist skills and techniques
+- Concrete examples from the conversation
+- Professional assessment of effectiveness
+
+Be direct and provide the substantive analysis you promised, not more questions."""
 
                 return {
                     "next_stage": "open_discussion",
