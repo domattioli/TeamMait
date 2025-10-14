@@ -573,6 +573,28 @@ def handle_flowchart_transition(user_input: str) -> dict:
     state = st.session_state.flowchart_state
     stage = state["stage"]
     
+    # Check if user has completed all questions but hasn't checked the completion box
+    questions_asked = len(st.session_state.flowchart_state["questions_asked"])
+    completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
+    
+    # If they've completed all questions and are trying to move on, remind them to check the box
+    if questions_asked >= 4 and not completion_checked:
+        # Check if they're trying to end the session or move on
+        ending_phrases = [
+            "done", "finished", "complete", "that's all", "thats all", "thanks", "thank you",
+            "goodbye", "bye", "see you", "i'm finished", "im finished", "wrap up",
+            "end session", "all set", "ready to go", "ready to move on"
+        ]
+        
+        if any(phrase in user_input.lower() for phrase in ending_phrases):
+            return {
+                "next_stage": stage,  # Stay in current stage
+                "bot_response": "It looks like you've completed reviewing all the questions! Before you move on, please remember to check the completion box in the sidebar to mark this section as finished. This helps track your progress through the session.",
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
+            }
+    
     # Check if we just offered analysis (look at last bot message for analysis offer)
     if (len(st.session_state.guided_messages) > 0 and 
         st.session_state.guided_messages[-1].get("role") == "assistant"):
@@ -621,9 +643,16 @@ Please provide the specific analysis that was offered in the previous message. F
                 "use_llm": False  # Explicitly prevent LLM usage
             }
         else:
+            # Check if completion box is checked
+            completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
+            if completion_checked:
+                completion_msg = "All questions have been reviewed and marked complete! Great work on finishing the guided interaction."
+            else:
+                completion_msg = "All questions have been reviewed! Please remember to check the completion box in the sidebar to mark this section as finished before moving on to other parts of the session."
+            
             return {
                 "next_stage": "complete",
-                "bot_response": "All questions have been reviewed. Session complete!",
+                "bot_response": completion_msg,
                 "show_buttons": False,
                 "show_feedback_buttons": False,
                 "use_llm": False
@@ -739,9 +768,16 @@ End with: "Does this help clarify things, or would you like a more in-depth expl
                     "use_llm": False
                 }
             else:
+                # All questions completed - check if they've marked it complete
+                completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
+                if completion_checked:
+                    completion_msg = "Understood. We've covered all my prepared observations and you've marked this section complete. Feel free to ask me anything else about the session."
+                else:
+                    completion_msg = "Understood. We've covered all my prepared observations. If you're ready to finish this section, please remember to check the completion box in the sidebar. Otherwise, feel free to ask me anything else about the session."
+                
                 return {
                     "next_stage": "open_discussion", 
-                    "bot_response": "Understood. We've covered all my prepared observations. Feel free to ask me anything else about the session.",
+                    "bot_response": completion_msg,
                     "show_buttons": False,
                     "show_feedback_buttons": False,
                     "use_llm": False
@@ -754,6 +790,19 @@ End with: "Does this help clarify things, or would you like a more in-depth expl
             "show_buttons": False,
             "show_feedback_buttons": False,
             "use_llm": True
+        }
+    
+    # Final catch-all - check if all questions are done and remind about completion
+    questions_asked = len(st.session_state.flowchart_state["questions_asked"])
+    completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
+    
+    if questions_asked >= 4 and not completion_checked:
+        return {
+            "next_stage": stage,
+            "bot_response": "I'm here to help with any questions about the transcript. Since you've reviewed all the guided questions, don't forget to check the completion box in the sidebar when you're ready to finish this section.",
+            "show_buttons": False,
+            "show_feedback_buttons": False,
+            "use_llm": False
         }
     
     return {
@@ -803,31 +852,6 @@ with st.sidebar:
     st.progress(min(questions_asked / 4, 1.0))
     st.caption(f"{questions_asked} / 4 questions reviewed")
     
-    # Debug info (temporary)
-    if questions_asked > 0:
-        st.caption(f"Asked IDs: {st.session_state.flowchart_state['questions_asked']}")
-        st.caption(f"Current stage: {st.session_state.flowchart_state['stage']}")
-    
-    # Temporary reset button for testing
-    if st.button("Reset Session (Debug)", help="Reset to test progress tracking"):
-        st.session_state.flowchart_state = {
-            "stage": "intro",
-            "questions_asked": [],
-            "current_question": None,
-            "current_response_type": None,
-            "needs_followup": False,
-            "all_domains_covered": False,
-            "show_feedback_buttons": False
-        }
-        st.session_state.guided_messages = [
-            {
-                "role": "assistant",
-                "content": "Session reset! Ready to test progress tracking. Ask for the 'next question' to begin.",
-                "ts": now_ts()
-            }
-        ]
-        st.rerun()
-
     # Copy settings from Open Chat
     with st.expander("Settings", expanded=False):
         stream_on = st.checkbox("Stream responses", value=True)
@@ -910,7 +934,7 @@ if st.session_state.flowchart_state["stage"] != "complete":
         st.session_state.guided_messages.append(user_msg)
         
         with st.chat_message("user"):
-            st.markdown("**User** • *" + user_msg["ts"] + "*")
+            st.markdown(f"**User** • <small style='color: #888; font-size: 0.8em;'>*{user_msg['ts']}*</small>", unsafe_allow_html=True)
             st.markdown(prompt)
         
         # Process transition

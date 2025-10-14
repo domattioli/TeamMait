@@ -523,11 +523,10 @@ for m in st.session_state.messages:
     
     with st.chat_message(name=name_for_ui, avatar=avatar):
         # Display role label and timestamp together
-        header_parts = [f"**{role_label}**"]
         if st.session_state.get("show_timestamps", False) and "ts" in m:
-            header_parts.append(f"*{m['ts']}*")
-        
-        st.markdown(" • ".join(header_parts))
+            st.markdown(f"**{role_label}** • <small style='color: #888; font-size: 0.8em;'>*{m['ts']}*</small>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"**{role_label}**")
         st.markdown(m["content"])
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -544,11 +543,10 @@ if prompt is not None and prompt.strip() != "":
 
     with st.chat_message(name=username, avatar=DM_SVG):
         # Display user label and timestamp
-        header_parts = ["**User**"]
         if st.session_state.get("show_timestamps", False):
-            header_parts.append(f"*{user_msg['ts']}*")
-        
-        st.markdown(" • ".join(header_parts))
+            st.markdown(f"**User** • <small style='color: #888; font-size: 0.8em;'>*{user_msg['ts']}*</small>", unsafe_allow_html=True)
+        else:
+            st.markdown("**User**")
         st.markdown(prompt)
 
     # ---------- Retrieve context from vector DB ----------
@@ -598,10 +596,10 @@ if prompt is not None and prompt.strip() != "":
     with st.chat_message(name="TeamMait", avatar=BOT_SVG):
         # Show TeamMait header with timestamp
         timestamp = now_ts()
-        header_parts = ["**TeamMait**"]
         if st.session_state.get("show_timestamps", False):
-            header_parts.append(f"*{timestamp}*")
-        st.markdown(" • ".join(header_parts))
+            st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
+        else:
+            st.markdown("**TeamMait**")
         
         if st.session_state["stream_on"]:
             placeholder = st.empty()
