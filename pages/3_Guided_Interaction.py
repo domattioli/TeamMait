@@ -363,37 +363,51 @@ The user responded: "{user_input}"
 
 Classify this response into exactly ONE of these categories:
 
-1. "accept" - User agrees with, accepts, or acknowledges the observation as accurate
-2. "correct" - User disagrees and wants to provide corrections, alternative perspectives, or thinks the observation is wrong
-3. "clarify" - User wants more explanation, elaboration, or doesn't understand something about the observation
-4. "disregard" - User wants to skip this topic, move on, or considers it not relevant
-5. "unclear" - Response doesn't clearly fit the above categories or is ambiguous
+1. "accept_passive" - User briefly or minimally agrees with the observation (e.g., "yes", "I agree", "that's right")
+2. "accept_active" - User enthusiastically agrees and elaborates or adds their own thoughts (e.g., "Yes, and I also noticed...")
+3. "correct_passive" - User mildly or politely disagrees without detailed explanation (e.g., "I'm not sure that's right")
+4. "correct_active" - User strongly disagrees and provides alternative perspective or evidence (e.g., "Actually, I think...")
+5. "clarify_passive" - User asks for basic clarification or indicates confusion (e.g., "What do you mean?", "I don't understand")
+6. "clarify_active" - User asks specific questions or requests detailed explanation (e.g., "Can you explain how this relates to...?")
+7. "disregard_passive" - User politely deflects or shows minimal interest (e.g., "Let's move on", "Not sure about that")
+8. "disregard_active" - User explicitly rejects discussing the topic or strongly indicates disinterest (e.g., "I don't want to discuss this")
+9. "unclear" - Response doesn't clearly fit the above categories or is ambiguous
 
-Respond with ONLY the single word category (accept, correct, clarify, disregard, or unclear). No explanation needed."""
+Respond with ONLY the single category name (e.g., "accept_passive", "clarify_active", etc.). No explanation needed."""
 
     client = get_openai_client()
     if client is None:
         # Fallback to keyword matching if OpenAI is unavailable
         user_lower = user_input.lower()
         
-        accept_keywords = ["accept", "agree", "yes", "correct", "right", "accurate"]
-        correct_keywords = ["correct", "actually", "disagree", "no", "wrong", "instead", "i don't know about that", "i don't think so", "i don't agree", "i don't think that's right", "not quite", "not really"]
-        clarify_keywords = [
-            "clarify", "explain", "elaborate", "more", "unclear", "expand",
-            "what do you mean", "what does that mean", "can you explain", 
-            "i don't understand", "i dont understand", "confused", "what",
-            "how so", "in what way", "could you elaborate", "tell me more"
+        accept_passive_keywords = ["yes", "agree", "right", "correct", "ok", "okay", "sure", "i see"]
+        accept_active_keywords = ["yes and", "agree and", "right and", "absolutely", "definitely", "i also noticed", "i also think", "additionally"]
+        correct_passive_keywords = ["not sure", "i don't know", "maybe not", "not quite", "hmm", "somewhat"]
+        correct_active_keywords = ["actually", "disagree", "no", "wrong", "instead", "i think", "but", "however", "not accurate"]
+        clarify_passive_keywords = ["what", "confused", "don't understand", "dont understand", "unclear", "meaning"]
+        clarify_active_keywords = [
+            "can you explain", "elaborate", "more details", "what do you mean by", "specifically", "how does",
+            "why do you think", "evidence", "example", "where in", "which line"
         ]
-        disregard_keywords = ["disregard", "skip", "pass", "not relevant", "move on"]
+        disregard_passive_keywords = ["ok", "sure", "let's move on", "lets move on", "next", "different", "something else"]
+        disregard_active_keywords = ["don't want to discuss", "skip", "not relevant", "not interested", "pass", "move on", "irrelevant"]
         
-        if any(kw in user_lower for kw in disregard_keywords):
-            return "disregard"
-        elif any(kw in user_lower for kw in clarify_keywords):
-            return "clarify"
-        elif any(kw in user_lower for kw in accept_keywords):
-            return "accept"
-        elif any(kw in user_lower for kw in correct_keywords):
-            return "correct"
+        if any(kw in user_lower for kw in disregard_active_keywords):
+            return "disregard_active"
+        elif any(kw in user_lower for kw in disregard_passive_keywords):
+            return "disregard_passive"
+        elif any(kw in user_lower for kw in clarify_active_keywords):
+            return "clarify_active"
+        elif any(kw in user_lower for kw in clarify_passive_keywords):
+            return "clarify_passive"
+        elif any(kw in user_lower for kw in accept_active_keywords):
+            return "accept_active"
+        elif any(kw in user_lower for kw in accept_passive_keywords):
+            return "accept_passive"
+        elif any(kw in user_lower for kw in correct_active_keywords):
+            return "correct_active"
+        elif any(kw in user_lower for kw in correct_passive_keywords):
+            return "correct_passive"
         else:
             return "unclear"
     
@@ -408,7 +422,13 @@ Respond with ONLY the single word category (accept, correct, clarify, disregard,
         classification = response.choices[0].message.content.strip().lower()
         
         # Validate the response is one of our expected categories
-        valid_categories = ["accept", "correct", "clarify", "disregard", "unclear"]
+        valid_categories = [
+            "accept_passive", "accept_active", 
+            "correct_passive", "correct_active", 
+            "clarify_passive", "clarify_active", 
+            "disregard_passive", "disregard_active", 
+            "unclear"
+        ]
         if classification in valid_categories:
             return classification
         else:
@@ -417,6 +437,7 @@ Respond with ONLY the single word category (accept, correct, clarify, disregard,
     except Exception as e:
         print(f"Error in LLM classification: {e}")
         return "unclear"
+
 
 def detect_next_question_request(user_input: str) -> bool:
     """Detect if user is explicitly requesting the next question using LLM classification."""
