@@ -66,12 +66,32 @@ class GuidedInteractionStateMachine:
         self.question_bank = question_bank
         self.openai_client = openai_client
         self.button_clicked = None
+        self.pending_offer = None  # Track if we offered something specific
+        self.last_bot_message = None  # Track last bot message for context
         
+    def set_last_bot_message(self, message: str):
+        """Store the last bot message for context."""
+        self.last_bot_message = message
+        
+        # Check if bot just made an offer for analysis
+        if "would you like me to provide an analysis" in message.lower() or \
+           "would you like an analysis" in message.lower():
+            # Extract what analysis was offered
+            self.pending_offer = "analysis"
+        else:
+            self.pending_offer = None
+    
     def transition(self, user_input: str) -> StateTransition:
         """Main transition logic - routes to state-specific handlers."""
         
-        # Check for next question request (priority across all states except IDLE)
-        if self.current_state != ChatbotState.IDLE and self._wants_next_question(user_input):
+        # PRIORITY 1: Check if user is accepting a pending offer
+        if self.pending_offer == "analysis" and self._is_accepting_offer(user_input):
+            return self._provide_promised_analysis(user_input)
+        
+        # PRIORITY 2: Check for next question request (but not if in middle of discussion)
+        if self.current_state != ChatbotState.IDLE and \
+           not self.pending_offer and \
+           self._wants_next_question(user_input):
             return self._advance_to_next_question()
         
         # Route to state-specific handler
@@ -87,182 +107,62 @@ class GuidedInteractionStateMachine:
         # Fallback
         return StateTransition(next_state=self.current_state)
     
-    # ========== STATE HANDLERS ==========
+    def _is_accepting_offer(self, user_input: str) -> bool:
+        """Check if user is accepting an offered analysis."""
+        acceptance_words = ["yes", "sure", "ok", "okay", "please", "go ahead", "yeah"]
+        user_lower = user_input.lower().strip()
+        return user_lower in acceptance_words or any(word in user_lower for word in acceptance_words)
     
-    def _handle_idle(self, user_input: str) -> StateTransition:
-        """Handle IDLE state - waiting for user to request first question."""
-        if self._wants_next_question(user_input):
-            return self._advance_to_next_question()
+    def _provide_promised_analysis(self, user_input: str) -> StateTransition:
+        """Provide the analysis that was previously offered."""
+        current_prompt = self.current_question or {}
         
-        return StateTransition(
-            next_state=ChatbotState.IDLE,
-            bot_response="I'm ready to share my observations when you are. Just ask for the next question when you'd like to begin.",
-            show_buttons=False,
-            show_feedback_buttons=False
-        )
-    
-    def _handle_question_presentation(self, user_input: str) -> StateTransition:
-        """Handle QUESTION_PRESENTATION state - user responding to a bank question."""
+        # Determine what analysis was offered based on last message
+        analysis_topic = "the session"
+        if self.last_bot_message:
+            if "rapport and empathic connection" in self.last_bot_message.lower():
+                analysis_topic = "rapport and empathic connection across the session"
+            elif "therapeutic alliance" in self.last_bot_message.lower():
+                analysis_topic = "therapeutic alliance in the session"
         
-        # Classify the response
-        response_type = self._classify_response(user_input)
-        self.current_response_type = response_type
-        
-        # Handle based on classification
-        if response_type == "disregard_active" or response_type == "disregard_passive":
-            self.current_state = ChatbotState.OPEN_DISCUSSION
-            return self._offer_next_question()
-        
-        elif response_type.startswith("accept"):
-            self.current_state = ChatbotState.OPEN_DISCUSSION
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="I'm glad you agree with that observation. Is there anything else you'd like to discuss about this topic, or are you ready to move on to my next observation?",
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
-        
-        elif response_type.startswith("correct"):
-            self.current_state = ChatbotState.OPEN_DISCUSSION
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="I appreciate your perspective. What specifically would you like to discuss or clarify about this observation?",
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
-        
-        elif response_type.startswith("clarify"):
-            self.current_state = ChatbotState.OPEN_DISCUSSION
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="Of course, I'd be happy to clarify. What specific part would you like me to explain further?",
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
-        
-        else:  # unclear
-            current_prompt = self.current_question or {}
-            context = f"""The user said: "{user_input}"
+        analysis_context = f"""The user accepted your offer to provide an analysis about {analysis_topic}.
 
-I just shared this observation: {current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}
+Your previous message offered: "{self.last_bot_message}"
 
-The user's response is unclear. Please respond naturally to understand what they're thinking."""
-            
-            return StateTransition(
-                next_state=ChatbotState.QUESTION_PRESENTATION,
-                use_llm=True,
-                show_buttons=True,
-                show_feedback_buttons=True,
-                api_context=context
-            )
-    
-    def _handle_open_discussion(self, user_input: str) -> StateTransition:
-        """Handle OPEN_DISCUSSION state - free-form discussion about current topic."""
-        
-        # Check for clarification requests
-        if self._is_clarification_request(user_input):
-            current_prompt = self.current_question or {}
-            context = f"""The user is asking for clarification about: "{current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}"
+The user said: "{user_input}"
 
-User's request: "{user_input}"
+Now provide the detailed, specific analysis that you offered. Focus on {analysis_topic} with:
+- Specific evidence from the transcript with line number citations
+- Clear observations about therapist skills and techniques
+- Concrete examples from the conversation
+- Professional assessment of effectiveness
 
-Provide a concise clarification with specific line numbers from the transcript. End with: "Does this help clarify things, or would you like a more in-depth explanation?" """
-            
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                use_llm=True,
-                api_context=context
-            )
+Be direct and provide the substantive analysis you promised. Do NOT offer more analysis or ask more questions - just deliver what you promised."""
+
+        # Clear the pending offer
+        self.pending_offer = None
         
-        # Check for disengagement
-        if self._wants_to_disengage(user_input):
-            return self._offer_next_question()
-        
-        # Continue discussion
         return StateTransition(
             next_state=ChatbotState.OPEN_DISCUSSION,
-            use_llm=True
+            use_llm=True,
+            api_context=analysis_context
         )
     
-    def _handle_complete(self, user_input: str) -> StateTransition:
-        """Handle SESSION_COMPLETE state."""
-        return StateTransition(
-            next_state=ChatbotState.SESSION_COMPLETE,
-            bot_response="The guided interaction is complete. You can start a new session or ask questions about the transcript.",
-            show_buttons=False,
-            show_feedback_buttons=False
-        )
-    
-    # ========== HELPER METHODS ==========
-    
-    def _get_next_question(self) -> Optional[Dict]:
-        """Select a random question that hasn't been asked yet."""
-        available = [q for q in self.question_bank if q["id"] not in self.questions_asked]
-        
-        if not available:
-            return None
-        
-        selected = random.choice(available)
-        self.questions_asked.append(selected["id"])
-        self.current_question = selected
-        
-        return selected
-    
-    def _format_question(self, question: Dict) -> str:
-        """Format a question into a prompt message."""
-        return (
-            f"{question['assertion']} {question['explanation']}\n\n"
-            f"{question['invitation']}"
-        )
-    
-    def _advance_to_next_question(self) -> StateTransition:
-        """Advance to the next question or complete the session."""
-        question = self._get_next_question()
-        
-        if question:
-            self.current_state = ChatbotState.QUESTION_PRESENTATION
-            return StateTransition(
-                next_state=ChatbotState.QUESTION_PRESENTATION,
-                bot_response=self._format_question(question),
-                show_buttons=True,
-                show_feedback_buttons=True
-            )
-        else:
-            self.current_state = ChatbotState.SESSION_COMPLETE
-            completion_msg = "All questions have been reviewed! Please remember to check the completion box in the sidebar to mark this section as finished before moving on to other parts of the session."
-            return StateTransition(
-                next_state=ChatbotState.SESSION_COMPLETE,
-                bot_response=completion_msg,
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
-    
-    def _offer_next_question(self) -> StateTransition:
-        """Offer to move to the next question."""
-        available = [q for q in self.question_bank if q["id"] not in self.questions_asked]
-        
-        if available:
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="That's perfectly fine. Would you like me to share my next observation about the session?",
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
-        else:
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="Understood. We've covered all my prepared observations. If you're ready to finish this section, please remember to check the completion box in the sidebar. Otherwise, feel free to ask me anything else about the session.",
-                show_buttons=False,
-                show_feedback_buttons=False
-            )
+    # ... rest of the methods stay the same ...
     
     def _wants_next_question(self, user_input: str) -> bool:
         """Detect if user wants the next question using LLM."""
+        # Don't trigger on simple acceptances
+        user_lower = user_input.lower().strip()
+        simple_acceptances = ["yes", "sure", "ok", "okay", "yeah", "yep"]
+        if user_lower in simple_acceptances:
+            return False
+        
         if not self.openai_client:
             # Fallback to keyword matching
             keywords = [
                 "next question", "next observation", "what's next", "another question",
-                "move on", "next", "ready", "yes", "sure", "go ahead", "please"
+                "move on", "next"
             ]
             return any(kw in user_input.lower() for kw in keywords)
         
@@ -270,6 +170,11 @@ Provide a concise clarification with specific line numbers from the transcript. 
             prompt = f"""Does this user response indicate they want to proceed to the next structured observation/question?
 
 User said: "{user_input}"
+
+Context: They are currently discussing a therapy transcript observation.
+
+If they're just agreeing or saying "yes/sure/ok", that's NOT requesting the next question.
+Only return "yes" if they're explicitly asking for the next question/observation.
 
 Respond with ONLY "yes" or "no"."""
 
@@ -281,66 +186,8 @@ Respond with ONLY "yes" or "no"."""
             )
             return response.choices[0].message.content.strip().lower() == "yes"
         except:
-            keywords = ["next", "ready", "yes", "sure", "go ahead"]
+            keywords = ["next question", "next observation", "what's next", "move on"]
             return any(kw in user_input.lower() for kw in keywords)
-    
-    def _classify_response(self, user_input: str) -> str:
-        """Classify user's response type using LLM."""
-        if not self.openai_client:
-            # Fallback to keyword matching
-            user_lower = user_input.lower()
-            if any(kw in user_lower for kw in ["don't want", "skip", "pass"]):
-                return "disregard_active"
-            elif any(kw in user_lower for kw in ["yes", "agree", "right"]):
-                return "accept_passive"
-            elif any(kw in user_lower for kw in ["no", "disagree", "wrong"]):
-                return "correct_active"
-            elif any(kw in user_lower for kw in ["what", "clarify", "explain"]):
-                return "clarify_passive"
-            return "unclear"
-        
-        try:
-            current_prompt = self.current_question or {}
-            prompt = f"""Classify this response into ONE category:
-
-Observation: {current_prompt.get('assertion', '')}
-User response: "{user_input}"
-
-Categories:
-1. accept_passive - Brief agreement
-2. accept_active - Enthusiastic agreement with elaboration
-3. correct_passive - Mild disagreement
-4. correct_active - Strong disagreement with reasoning
-5. clarify_passive - Basic clarification request
-6. clarify_active - Detailed explanation request
-7. disregard_passive - Polite deflection
-8. disregard_active - Explicit rejection
-9. unclear - Doesn't fit above
-
-Respond with ONLY the category name."""
-
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=10,
-                temperature=0.1
-            )
-            return response.choices[0].message.content.strip().lower()
-        except:
-            return "unclear"
-    
-    def _is_clarification_request(self, user_input: str) -> bool:
-        """Check if user is asking for clarification."""
-        keywords = [
-            "clarify", "explain", "rationale", "reasoning", "why", "how did you",
-            "what do you mean", "elaborate", "tell me more"
-        ]
-        return any(kw in user_input.lower() for kw in keywords)
-    
-    def _wants_to_disengage(self, user_input: str) -> bool:
-        """Check if user wants to disengage from current topic."""
-        keywords = ["let's move on", "move on", "skip", "next topic", "something else"]
-        return any(kw in user_input.lower() for kw in keywords)
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -716,7 +563,8 @@ if st.session_state.state_machine.current_state != ChatbotState.SESSION_COMPLETE
                     "ts": timestamp
                 }
                 st.session_state.guided_messages.append(bot_msg)
-                
+                # ADD THIS LINE HERE:
+                st.session_state.state_machine.set_last_bot_message(acc.strip())         
         elif transition.bot_response:
             timestamp = now_ts()
             with st.chat_message("assistant"):
@@ -729,6 +577,8 @@ if st.session_state.state_machine.current_state != ChatbotState.SESSION_COMPLETE
                 "ts": timestamp
             }
             st.session_state.guided_messages.append(bot_msg)
+            # ADD THIS LINE HERE:
+            st.session_state.state_machine.set_last_bot_message(transition.bot_response)
         
         # Clear button state
         st.session_state.state_machine.button_clicked = None
