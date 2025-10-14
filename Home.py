@@ -75,16 +75,15 @@ You are participating as an expert clinician evaluator in this research study. T
 #### Phase 1: Open Chat
 - **Interactive Review**: Ask TeamMait any questions about the therapy transcript, therapist behavior, or therapy processes
 - **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts
-- **Evidence-Based**: Request justification or supporting evidence from TeamMait for any responses, including specific line citations
 - **Flexible Approach**: Use TeamMait however feels natural for your evaluation process
+- **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
 
+A brief survey about your experience will follow this phase.
+            
 #### Phase 2: Guided Interaction  
 - **Structured Observations**: TeamMait will share prepared observations about notable aspects of the transcript
-- **Your Choice of Response**: Respond however feels natural - ask for clarification, expand on ideas, disagree, or move on to the next observation
-- **Evidence Available**: Request justification or supporting evidence for any observation, with specific transcript references
-- **Natural Flow**: Progress through observations at your own pace, with options to explore topics in depth
-
-Both phases will be followed by brief surveys about your experience.
+- **Natural Flow**: Progress through observations at your own pace, with options to explore topics further depth or breadth, or to discuss related topics.
+- **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
 
 ---
 
