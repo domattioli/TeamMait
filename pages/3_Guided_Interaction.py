@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import json
 import glob
+import random
 
 # Fix the import path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,11 @@ try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
+
+try:
+    from docx import Document
+except ImportError:
+    Document = None
 
 # ---------- Setup ----------
 st.set_page_config(page_title="Guided Interaction", page_icon="", layout="wide")
@@ -70,24 +76,53 @@ def build_system_prompt(mode: str = "guided") -> str:
         "You are TeamMait, a peer-support assistant for expert clinicians reviewing "
         "therapist performance in a transcript. Your scope is limited strictly to "
         "analyzing the therapist's observable skills in the transcript. "
-        "Anchor every claim to the transcript (and provided docs). If uncertain, say so briefly. "
+        "Anchor every claim to the transcript (and provided docs). When citing the transcript, "
+        "use the line numbers provided in the format [Line X]. If uncertain, say so briefly. "
         "Be succinct and academically neutral; do not use emojis. "
-        "Never invent facts. Cite transcript line references; if no citation exists, say so. "
+        "Never invent facts. Always cite specific line references when making claims about the transcript. "
         "You cannot offer any visual or audio support -- only text responses."
     )
     
     if mode == "guided":
         return base_prompt + (
-            "\n\nYou are operating in GUIDED REVIEW mode. The user is responding to structured prompts "
-            "about specific clinical domains (Adherence, Procedural, Relational, Structural). "
-            "Your role is to: "
-            "1) Acknowledge their response type (Accept/Correct/Clarify/Disregard) "
-            "2) If they Correct or Clarify, engage briefly with their clinical observation "
-            "3) Ask if they want to discuss anything else about this domain before moving on "
-            "4) Keep responses concise and focused on the specific prompt context."
+            "\n\nYou are operating in GUIDED REVIEW mode. You present observations about the transcript "
+            "and engage in natural discussion with the clinician. When they respond to your observations, "
+            "engage conversationally and provide thoughtful analysis. You should respond naturally to their "
+            "questions and comments about the transcript without requiring structured response formats. "
+            "Keep responses focused and clinically relevant. Always reference specific line numbers "
+            "when discussing transcript content (e.g., 'In Line 5, the therapist...')."
         )
     
     return base_prompt
+
+def extract_text_from_docx(docx_path: str) -> str:
+    """Extract text content from a DOCX file."""
+    if Document is None:
+        return f"[Error: python-docx not installed. Cannot read {os.path.basename(docx_path)}]"
+    
+    try:
+        doc = Document(docx_path)
+        text_parts = []
+        
+        # Extract text from paragraphs
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text_parts.append(paragraph.text.strip())
+        
+        # Extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    if cell.text.strip():
+                        row_text.append(cell.text.strip())
+                if row_text:
+                    text_parts.append(" | ".join(row_text))
+        
+        return "\n\n".join(text_parts)
+    
+    except Exception as e:
+        return f"[Error reading {os.path.basename(docx_path)}: {str(e)}]"
 
 def openai_complete(history, system_text, model_name="gpt-4o-mini", stream=False, max_tokens=512):
     """Complete a chat using OpenAI API."""
@@ -131,7 +166,7 @@ def openai_complete(history, system_text, model_name="gpt-4o-mini", stream=False
             return f"[Error: {e}]"
 
 # ---------- RAG Setup ----------
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def initialize_chroma():
     """Initialize ChromaDB client and collection."""
     embed_model = "sentence-transformers/all-MiniLM-L6-v2"
@@ -153,7 +188,7 @@ def initialize_chroma():
     
     return chroma_client, collection
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_rag_documents():
     """Load all RAG documents and seed ChromaDB collection."""
     _, collection = initialize_chroma()
@@ -163,14 +198,17 @@ def load_rag_documents():
     documents = []
     ids = []
     
-    # Load main reference conversation
+    # Load main reference conversation with line numbers
     ref_path = os.path.join(doc_folder, "116_P8_conversation.json")
     if os.path.exists(ref_path):
         with open(ref_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict) and "full_conversation" in data:
                 for i, turn in enumerate(data["full_conversation"]):
-                    documents.append(str(turn))
+                    line_num = i + 1  # 1-indexed line numbers
+                    # Add line number to the document for better citation
+                    numbered_turn = f"[Line {line_num}] {turn}"
+                    documents.append(numbered_turn)
                     ids.append(f"ref_{i}")
     
     # Load .txt and .json files from supporting_documents
@@ -191,6 +229,28 @@ def load_rag_documents():
                 for k, v in data.items():
                     documents.append(f"{k}: {v}")
                     ids.append(f"supp_json_{os.path.basename(json_path)}_{k}")
+    
+    # Load .docx files from supporting_documents
+    for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
+        content = extract_text_from_docx(docx_path)
+        if content and not content.startswith("[Error"):
+            # Split large documents into chunks for better retrieval
+            words = content.split()
+            chunk_size = 500  # words per chunk
+            
+            if len(words) <= chunk_size:
+                documents.append(content)
+                ids.append(f"supp_docx_{os.path.basename(docx_path)}")
+            else:
+                # Split into chunks
+                for i in range(0, len(words), chunk_size):
+                    chunk = " ".join(words[i:i + chunk_size])
+                    documents.append(chunk)
+                    ids.append(f"supp_docx_{os.path.basename(docx_path)}_chunk_{i//chunk_size + 1}")
+        else:
+            # Add error message as document for debugging
+            documents.append(content)
+            ids.append(f"supp_docx_error_{os.path.basename(docx_path)}")
     
     # Seed collection if empty
     if collection.count() == 0 and documents:
@@ -245,12 +305,12 @@ def initialize_flowchart_state():
             "current_question": None,
             "current_response_type": None,
             "needs_followup": False,
-            "all_domains_covered": False
+            "all_domains_covered": False,
+            "show_feedback_buttons": False  # Track when to show thumbs up/down
         }
 
 def get_next_question():
     """Select a random question from the bank that hasn't been asked yet."""
-    import random
     question_bank = load_question_bank()
     asked = st.session_state.flowchart_state["questions_asked"]
     
@@ -263,56 +323,321 @@ def get_next_question():
     st.session_state.flowchart_state["questions_asked"].append(selected["id"])
     st.session_state.flowchart_state["current_question"] = selected
     
+    # Debug: Print when question is added
+    current_count = len(st.session_state.flowchart_state["questions_asked"])
+    print(f"DEBUG: Added question {selected['id']}, total asked: {current_count}")
+    
     return selected
 
 def format_prompt_message(question: dict) -> str:
-    """Format a question into a prompt message."""
+    """Format a question into a naturalistic prompt message."""
     return (
-        f"**{question['label']}**\n\n"
-        f"**Assertion:** {question['assertion']}\n\n"
-        f"**Explanation:** {question['explanation']}\n\n"
-        f"**Invitation:** {question['invitation']}"
+        f"{question['assertion']} {question['explanation']}\n\n"
+        f"{question['invitation']}"
     )
 
 def detect_response_type(user_input: str) -> str:
-    """Detect the response type from user input."""
-    user_lower = user_input.lower()
+    """Detect the response type from user input using LLM classification."""
     
-    accept_keywords = ["accept", "agree", "yes", "correct", "right", "accurate"]
-    correct_keywords = ["correct", "actually", "disagree", "no", "wrong", "instead"]
-    clarify_keywords = ["clarify", "explain", "elaborate", "more", "unclear", "expand"]
-    disregard_keywords = ["disregard", "skip", "pass", "not relevant", "move on"]
+    # Get the current prompt context
+    current_prompt = st.session_state.flowchart_state.get("current_question", {})
+    prompt_context = ""
+    if current_prompt:
+        prompt_context = f"The observation was: {current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}"
     
-    if any(kw in user_lower for kw in disregard_keywords):
-        return "disregard"
-    elif any(kw in user_lower for kw in accept_keywords):
-        return "accept"
-    elif any(kw in user_lower for kw in correct_keywords):
-        return "correct"
-    elif any(kw in user_lower for kw in clarify_keywords):
-        return "clarify"
-    else:
+    classification_prompt = f"""You are analyzing a user's response to a clinical observation about a therapy transcript. 
+
+{prompt_context}
+
+The user responded: "{user_input}"
+
+Classify this response into exactly ONE of these categories:
+
+1. "accept" - User agrees with, accepts, or acknowledges the observation as accurate
+2. "correct" - User disagrees and wants to provide corrections, alternative perspectives, or thinks the observation is wrong
+3. "clarify" - User wants more explanation, elaboration, or doesn't understand something about the observation
+4. "disregard" - User wants to skip this topic, move on, or considers it not relevant
+5. "unclear" - Response doesn't clearly fit the above categories or is ambiguous
+
+Respond with ONLY the single word category (accept, correct, clarify, disregard, or unclear). No explanation needed."""
+
+    client = get_openai_client()
+    if client is None:
+        # Fallback to keyword matching if OpenAI is unavailable
+        user_lower = user_input.lower()
+        
+        accept_keywords = ["accept", "agree", "yes", "correct", "right", "accurate"]
+        correct_keywords = ["correct", "actually", "disagree", "no", "wrong", "instead", "i don't know about that", "i don't think so", "i don't agree", "i don't think that's right", "not quite", "not really"]
+        clarify_keywords = [
+            "clarify", "explain", "elaborate", "more", "unclear", "expand",
+            "what do you mean", "what does that mean", "can you explain", 
+            "i don't understand", "i dont understand", "confused", "what",
+            "how so", "in what way", "could you elaborate", "tell me more"
+        ]
+        disregard_keywords = ["disregard", "skip", "pass", "not relevant", "move on"]
+        
+        if any(kw in user_lower for kw in disregard_keywords):
+            return "disregard"
+        elif any(kw in user_lower for kw in clarify_keywords):
+            return "clarify"
+        elif any(kw in user_lower for kw in accept_keywords):
+            return "accept"
+        elif any(kw in user_lower for kw in correct_keywords):
+            return "correct"
+        else:
+            return "unclear"
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": classification_prompt}],
+            max_tokens=10,
+            temperature=0.1
+        )
+        
+        classification = response.choices[0].message.content.strip().lower()
+        
+        # Validate the response is one of our expected categories
+        valid_categories = ["accept", "correct", "clarify", "disregard", "unclear"]
+        if classification in valid_categories:
+            return classification
+        else:
+            return "unclear"
+            
+    except Exception as e:
+        print(f"Error in LLM classification: {e}")
         return "unclear"
+
+def detect_next_question_request(user_input: str) -> bool:
+    """Detect if user is explicitly requesting the next question using LLM classification."""
+    
+    # Get context about what just happened
+    last_message = ""
+    if (len(st.session_state.guided_messages) > 0 and 
+        st.session_state.guided_messages[-1].get("role") == "assistant"):
+        last_message = st.session_state.guided_messages[-1]["content"]
+    
+    context_info = ""
+    if "would you like me to share my next observation" in last_message.lower():
+        context_info = "The system just offered to share the next observation about the session."
+    elif st.session_state.flowchart_state["stage"] == "intro":
+        context_info = "This is the beginning of the session and the user is being asked to request the first question."
+    else:
+        context_info = "The user is currently in an open discussion about a therapy transcript observation."
+    
+    classification_prompt = f"""You are analyzing a user's response in a clinical supervision conversation to determine if they want to proceed to the next structured observation/question.
+
+Context: {context_info}
+
+The user said: "{user_input}"
+
+Does this response indicate that the user wants to:
+- Move to the next structured observation/question from the question bank
+- Start or continue with the structured review process  
+- Proceed to the next item in the guided interaction
+- Begin the guided interaction (if at the start)
+
+This includes:
+- Direct requests like "next question" or "what's next"
+- Expressions of readiness like "ready", "let's go", "I'm listening"
+- Positive responses to offers like "yes", "sure", "go ahead"
+- Indicating they want to continue or proceed
+
+Respond with ONLY "yes" if they want the next question/observation, or "no" if they want to continue current discussion. No explanation needed."""
+
+    client = get_openai_client()
+    if client is None:
+        # Fallback to keyword matching if OpenAI is unavailable
+        user_lower = user_input.lower()
+        
+        next_question_keywords = [
+            "next question", "next observation", "next prompt", "give me another",
+            "show me another", "what's next", "another question", "move to next",
+            "next item", "continue with questions", "more questions"
+        ]
+        
+        positive_responses = [
+            "yes", "yeah", "sure", "ok", "okay", "go ahead", "please", 
+            "yes please", "that would be good", "sounds good", "let's do it",
+            "lets do it", "i would like that", "id like that"
+        ]
+        
+        readiness_indicators = [
+            "ready", "im ready", "i'm ready", "let's go", "lets go", "start", 
+            "begin", "let's start", "lets start", "let's begin", "lets begin",
+            "go ahead", "go for it", "shoot", "fire away", "hit me", 
+            "i'm listening", "im listening", "proceed", "continue"
+        ]
+        
+        return (any(phrase in user_lower for phrase in next_question_keywords) or 
+                any(response in user_lower for response in positive_responses) or
+                any(indicator in user_lower for indicator in readiness_indicators))
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": classification_prompt}],
+            max_tokens=5,
+            temperature=0.1
+        )
+        
+        classification = response.choices[0].message.content.strip().lower()
+        
+        # Return True if LLM says "yes" (user wants next question)
+        return classification == "yes"
+            
+    except Exception as e:
+        print(f"Error in LLM next question detection: {e}")
+        # Fallback to keyword matching on error
+        user_lower = user_input.lower()
+        
+        next_question_keywords = [
+            "next question", "next observation", "next prompt", "give me another",
+            "show me another", "what's next", "another question", "move to next",
+            "next item", "continue with questions", "more questions"
+        ]
+        
+        positive_responses = [
+            "yes", "yeah", "sure", "ok", "okay", "go ahead", "please", 
+            "yes please", "that would be good", "sounds good", "let's do it",
+            "lets do it", "i would like that", "id like that"
+        ]
+        
+        readiness_indicators = [
+            "ready", "im ready", "i'm ready", "let's go", "lets go", "start", 
+            "begin", "let's start", "lets start", "let's begin", "lets begin",
+            "go ahead", "go for it", "shoot", "fire away", "hit me", 
+            "i'm listening", "im listening", "proceed", "continue"
+        ]
+        
+        return (any(phrase in user_lower for phrase in next_question_keywords) or 
+                any(response in user_lower for response in positive_responses) or
+                any(indicator in user_lower for indicator in readiness_indicators))
+
+def detect_decline_to_engage(user_input: str) -> bool:
+    """Detect if user is declining to engage further with current topic using LLM classification."""
+    
+    classification_prompt = f"""You are analyzing a user's response in a clinical supervision conversation. The user has been discussing a therapy transcript observation, and you need to determine if they want to disengage from the current topic.
+
+The user said: "{user_input}"
+
+Does this response indicate that the user wants to:
+- Stop discussing the current topic
+- Move on to something else  
+- Skip or avoid this particular observation
+- Show disinterest in continuing this line of discussion
+
+Respond with ONLY "yes" if they want to disengage, or "no" if they want to continue engaging. No explanation needed."""
+
+    client = get_openai_client()
+    if client is None:
+        # Fallback to keyword matching if OpenAI is unavailable
+        user_lower = user_input.lower().strip()
+        
+        decline_patterns = [
+            "no", "nope", "not really", "i don't want", "i dont want", 
+            "not interested", "let's move on", "lets move on", "move on",
+            "skip this", "skip that", "don't want to talk", "dont want to talk",
+            "rather not", "not now", "maybe later", "pass"
+        ]
+        
+        return any(pattern in user_lower for pattern in decline_patterns)
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": classification_prompt}],
+            max_tokens=5,
+            temperature=0.1
+        )
+        
+        classification = response.choices[0].message.content.strip().lower()
+        
+        # Return True if LLM says "yes" (user wants to disengage)
+        return classification == "yes"
+            
+    except Exception as e:
+        print(f"Error in LLM decline detection: {e}")
+        # Fallback to keyword matching on error
+        user_lower = user_input.lower().strip()
+        decline_patterns = [
+            "no", "nope", "not really", "i don't want", "i dont want", 
+            "not interested", "let's move on", "lets move on", "move on",
+            "skip this", "skip that", "don't want to talk", "dont want to talk",
+            "rather not", "not now", "maybe later", "pass"
+        ]
+        return any(pattern in user_lower for pattern in decline_patterns)
 
 def handle_flowchart_transition(user_input: str) -> dict:
     """Handle flowchart state transitions based on user input."""
     state = st.session_state.flowchart_state
     stage = state["stage"]
     
-    if stage == "intro":
+    # Check if we just offered analysis (look at last bot message for analysis offer)
+    if (len(st.session_state.guided_messages) > 0 and 
+        st.session_state.guided_messages[-1].get("role") == "assistant"):
+        last_message = st.session_state.guided_messages[-1]["content"]
+        print(f"DEBUG: Last message: {last_message[:100]}...")
+        if ("would you like me to provide an analysis" in last_message.lower() or 
+            "would you like an analysis" in last_message.lower() or
+            "provide an analysis" in last_message.lower()):
+            print(f"DEBUG: Analysis offer detected! User input: {user_input}")
+            # User is responding to analysis offer - check if they're accepting
+            user_lower = user_input.lower()
+            accept_analysis = any(phrase in user_lower for phrase in [
+                "yes", "yeah", "sure", "ok", "okay", "yes please", "please",
+                "that would be good", "sounds good", "go ahead", "i would like that"
+            ])
+            print(f"DEBUG: Accept analysis: {accept_analysis}")
+            if accept_analysis:
+                # Provide the requested analysis using LLM with specific context
+                current_prompt = st.session_state.flowchart_state.get("current_question", {})
+                analysis_context = f"""The user has requested an analysis. Based on the previous observation: "{current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}"
+
+Please provide the specific analysis that was offered in the previous message. Focus on the particular aspect mentioned in the analysis offer and provide detailed, evidence-based insights from the transcript with line number citations."""
+
+                return {
+                    "next_stage": "open_discussion",
+                    "bot_response": None,
+                    "show_buttons": False, 
+                    "show_feedback_buttons": False,
+                    "use_llm": True,
+                    "api_context": analysis_context
+                }
+            # If they didn't accept, continue with normal flow
+    
+    # PRIORITY CHECK: Check for next question request 
+    # BUT NOT if we're in prompt stage (responding to bank question) - let stage logic handle it first
+    # ALSO NOT if we just offered analysis and user declined it
+    if stage != "prompt" and detect_next_question_request(user_input):
         question = get_next_question()
         if question:
+            # Ensure we return ONLY the bank question, no LLM generation
             return {
                 "next_stage": "prompt",
                 "bot_response": format_prompt_message(question),
-                "show_buttons": True
+                "show_buttons": True,
+                "show_feedback_buttons": True,
+                "use_llm": False  # Explicitly prevent LLM usage
             }
         else:
             return {
                 "next_stage": "complete",
                 "bot_response": "All questions have been reviewed. Session complete!",
-                "show_buttons": False
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
             }
+    
+    if stage == "intro":
+        # First question only starts when user explicitly asks for it
+        return {
+            "next_stage": "intro",
+            "bot_response": "I'm ready to share my observations when you are. Just ask for the next question when you'd like to begin.",
+            "show_buttons": False,
+            "show_feedback_buttons": False,
+            "use_llm": False  # Changed from True to False to prevent unintended LLM calls
+        }
     
     elif stage == "prompt":
         response_type = detect_response_type(user_input)
@@ -320,75 +645,123 @@ def handle_flowchart_transition(user_input: str) -> dict:
         
         if response_type == "disregard":
             return {
-                "next_stage": "anything_else",
-                "bot_response": "Noted. Anything else you would like to discuss about this topic before we move on?",
-                "show_buttons": False
+                "next_stage": "open_discussion",
+                "bot_response": "Noted. Feel free to ask me anything else about this transcript, or request the next question when you're ready.",
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
             }
-        elif response_type in ["accept", "correct", "clarify"]:
-            if len(user_input.split()) <= 2:
-                return {
-                    "next_stage": "anything_else",
-                    "bot_response": f"You chose to {response_type}. Anything else you would like to discuss about this topic?",
-                    "show_buttons": False
-                }
-            else:
-                state["needs_followup"] = True
-                return {
-                    "next_stage": "active_engagement",
-                    "bot_response": None,
-                    "show_buttons": False,
-                    "use_llm": True
-                }
+        elif response_type == "accept":
+            return {
+                "next_stage": "open_discussion",
+                "bot_response": "I'm glad you agree with that observation. Is there anything else you'd like to discuss about this topic, or are you ready to move on to my next observation?",
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
+            }
+        elif response_type == "correct":
+            return {
+                "next_stage": "open_discussion",
+                "bot_response": "I appreciate your perspective. What specifically would you like to discuss or clarify about this observation?",
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
+            }
+        elif response_type == "clarify":
+            return {
+                "next_stage": "open_discussion",
+                "bot_response": "Of course, I'd be happy to clarify. What specific part would you like me to explain further?",
+                "show_buttons": False,
+                "show_feedback_buttons": False,
+                "use_llm": False
+            }
         else:
+            # For unclear responses, use LLM to respond naturally
+            current_prompt = st.session_state.current_prompt
+            context = f"""The user said: "{user_input}"
+
+I just shared this observation about their therapy session: {current_prompt['assertion']} {current_prompt['explanation']}
+
+The user's response doesn't clearly indicate if they accept, want to correct, want clarification, or want to disregard my observation. Please respond naturally and conversationally, asking them to clarify what they mean or help them engage with the observation. Don't mention response categories - just have a natural conversation to understand what they're thinking."""
+            
             return {
                 "next_stage": "prompt",
-                "bot_response": "I didn't catch that. Please respond with Accept, Correct, Clarify, or Disregard.",
-                "show_buttons": True
+                "bot_response": "",  # Will be filled by LLM
+                "show_buttons": True,
+                "show_feedback_buttons": True,
+                "use_llm": True,
+                "api_context": context,
+                "conversation_context": f"Clarifying unclear response about: {current_prompt['assertion']}"
             }
     
-    elif stage == "active_engagement":
-        return {
-            "next_stage": "anything_else",
-            "bot_response": "Does this response indicate active engagement that needs follow-up?",
-            "show_buttons": False
-        }
-    
-    elif stage == "anything_else":
-        user_lower = user_input.lower()
-        if any(word in user_lower for word in ["no", "nope", "nothing", "move on", "next"]):
-            if len(state["questions_asked"]) >= 4:
-                state["all_domains_covered"] = True
-                return {
-                    "next_stage": "complete",
-                    "bot_response": "All questions have been reviewed. Thank you for your participation!",
-                    "show_buttons": False
-                }
-            else:
-                question = get_next_question()
-                if question:
-                    return {
-                        "next_stage": "prompt",
-                        "bot_response": format_prompt_message(question),
-                        "show_buttons": True
-                    }
-                else:
-                    return {
-                        "next_stage": "complete",
-                        "bot_response": "All questions reviewed. Session complete!",
-                        "show_buttons": False
-                    }
-        else:
+    elif stage == "open_discussion":
+        # Check if user is asking for clarification about the current observation
+        clarification_requests = [
+            "clarify", "explain", "rationale", "reasoning", "why", "how did you",
+            "what do you mean", "can you elaborate", "tell me more", "break down"
+        ]
+        
+        is_clarification = any(phrase in user_input.lower() for phrase in clarification_requests)
+        
+        if is_clarification:
+            # Provide focused clarification about the current observation
+            current_prompt = st.session_state.flowchart_state.get("current_question", {})
+            clarification_context = f"""The user is asking for clarification about this specific observation: "{current_prompt.get('assertion', '')} {current_prompt.get('explanation', '')}"
+
+User's request: "{user_input}"
+
+Please provide a concise, focused clarification of your rationale for this observation. Reference specific line numbers from the transcript to support your reasoning. Keep it brief and directly address what they're asking about.
+
+End with: "Does this help clarify things, or would you like a more in-depth explanation?" """
+
             return {
-                "next_stage": "anything_else",
+                "next_stage": "open_discussion",
                 "bot_response": None,
                 "show_buttons": False,
-                "use_llm": True
+                "show_feedback_buttons": False,
+                "use_llm": True,
+                "api_context": clarification_context
             }
+        
+        # Check if user is declining to engage further - offer next observation
+        if detect_decline_to_engage(user_input):
+            # Check if there are more questions available
+            asked = st.session_state.flowchart_state["questions_asked"]
+            question_bank = load_question_bank()
+            available = [q for q in question_bank if q["id"] not in asked]
+            
+            if available:
+                return {
+                    "next_stage": "open_discussion",
+                    "bot_response": "That's perfectly fine. Would you like me to share my next observation about the session?",
+                    "show_buttons": False,
+                    "show_feedback_buttons": False,
+                    "use_llm": False
+                }
+            else:
+                return {
+                    "next_stage": "open_discussion", 
+                    "bot_response": "Understood. We've covered all my prepared observations. Feel free to ask me anything else about the session.",
+                    "show_buttons": False,
+                    "show_feedback_buttons": False,
+                    "use_llm": False
+                }
+        
+        # Stay in open discussion - answer any questions but don't auto-advance
+        return {
+            "next_stage": "open_discussion",
+            "bot_response": None,
+            "show_buttons": False,
+            "show_feedback_buttons": False,
+            "use_llm": True
+        }
     
     return {
         "next_stage": stage,
-        "bot_response": "I'm not sure how to respond. Please try again.",
-        "show_buttons": False
+        "bot_response": "I'm here to help with any questions about the transcript. Ask for the next question when you're ready to continue.",
+        "show_buttons": False,
+        "show_feedback_buttons": False,
+        "use_llm": False
     }
 
 # ---------- Session State ----------
@@ -398,7 +771,7 @@ if "guided_messages" not in st.session_state:
     st.session_state.guided_messages = [
         {
             "role": "assistant",
-            "content": "Hi, my name is TeamMait. Feel free to ask me any questions to ask me about the referenced session transcript. It can be found in the left side panel. If you'd like, I've made a few observations that we can discuss together.\n\nReady to begin?",
+            "content": "Hi, my name is TeamMait. Feel free to ask me any questions about the referenced session transcript. It can be found in the left side panel.\n\nI've made a few observations about the session that we can discuss together. When you're ready, just ask me for the 'next question' and I'll share one with you.",
             "ts": now_ts()
         }
     ]
@@ -429,6 +802,31 @@ with st.sidebar:
     questions_asked = len(st.session_state.flowchart_state["questions_asked"])
     st.progress(min(questions_asked / 4, 1.0))
     st.caption(f"{questions_asked} / 4 questions reviewed")
+    
+    # Debug info (temporary)
+    if questions_asked > 0:
+        st.caption(f"Asked IDs: {st.session_state.flowchart_state['questions_asked']}")
+        st.caption(f"Current stage: {st.session_state.flowchart_state['stage']}")
+    
+    # Temporary reset button for testing
+    if st.button("Reset Session (Debug)", help="Reset to test progress tracking"):
+        st.session_state.flowchart_state = {
+            "stage": "intro",
+            "questions_asked": [],
+            "current_question": None,
+            "current_response_type": None,
+            "needs_followup": False,
+            "all_domains_covered": False,
+            "show_feedback_buttons": False
+        }
+        st.session_state.guided_messages = [
+            {
+                "role": "assistant",
+                "content": "Session reset! Ready to test progress tracking. Ask for the 'next question' to begin.",
+                "ts": now_ts()
+            }
+        ]
+        st.rerun()
 
     # Copy settings from Open Chat
     with st.expander("Settings", expanded=False):
@@ -443,92 +841,61 @@ with st.sidebar:
         ref_conversation = load_reference_conversation()
         if ref_conversation:
             for i, turn in enumerate(ref_conversation):
+                line_num = i + 1  # 1-indexed line numbers
                 is_client = turn.strip().startswith("Client: ")
                 if is_client:
                     # Right-justify client's messages with custom CSS
                     st.markdown(f"""
                     <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
+                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}]</small><br>
                     {turn}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # Italicize therapist's messages
-                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><em>{turn}</em></div>", unsafe_allow_html=True)
+                    # Italicize therapist's messages, but keep line numbers unbolded
+                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}]</small><br><em>{turn}</em></div>", unsafe_allow_html=True)
 
 # ---------- Main Content ----------
 st.title("Guided Interaction")
 st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>", unsafe_allow_html=True)
 
-# Quick debug: show include flags so we can verify navigation preserves state
-st.info(f"Flags: open={st.session_state.get('include_open_chat', False)}, survey={st.session_state.get('include_survey', False)}, guided={st.session_state.get('include_guided_interaction', False)}")
-
 # Display chat history
 for m in st.session_state.guided_messages:
     role = m["role"]
+    # Add role labels for clarity
+    role_label = "TeamMait" if role == "assistant" else "User"
+    
     with st.chat_message(role):
+        # Display role label and timestamp together
         if "ts" in m:
-            st.caption(m["ts"])
+            st.markdown(f"**{role_label}** • <small style='color: #888; font-size: 0.8em;'>*{m['ts']}*</small>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"**{role_label}**")
         st.markdown(m["content"])
 
 # ---------- Response Buttons ----------
 def handle_button_click(response_type: str):
-    """Handle quick response button clicks."""
-    user_msg = {
-        "role": "user",
-        "content": response_type.capitalize(),
-        "ts": now_ts()
-    }
-    st.session_state.guided_messages.append(user_msg)
-    
-    # Process the transition
-    result = handle_flowchart_transition(response_type)
-    st.session_state.flowchart_state["stage"] = result["next_stage"]
-    
-    if result.get("use_llm"):
-        # Use LLM to generate response
-        context, _ = retrieve_context(user_msg["content"])
-        system_prompt = build_system_prompt(mode="guided") + f"\n\nContext:\n{context}"
-        
-        response = openai_complete(
-            history=st.session_state.guided_messages,
-            system_text=system_prompt,
-            model_name="gpt-4o-mini",
-            stream=False,
-            max_tokens=512
-        )
-        
-        bot_msg = {
-            "role": "assistant",
-            "content": response,
-            "ts": now_ts()
-        }
-        st.session_state.guided_messages.append(bot_msg)
-        
-        # Follow up with "anything else"
-        followup_msg = {
-            "role": "assistant",
-            "content": "Anything else you would like to discuss about this topic before we move on?",
-            "ts": now_ts()
-        }
-        st.session_state.guided_messages.append(followup_msg)
-    elif result["bot_response"]:
-        bot_msg = {
-            "role": "assistant",
-            "content": result["bot_response"],
-            "ts": now_ts()
-        }
-        st.session_state.guided_messages.append(bot_msg)
+    """Handle quick response button clicks silently."""
+    # Keep buttons visible but record the response
+    st.session_state.flowchart_state["current_response_type"] = response_type
+    st.session_state.flowchart_state["button_clicked"] = response_type
     
     st.rerun()
 
-# Show buttons only when in prompt stage
-if st.session_state.flowchart_state["stage"] == "prompt":
-    st.markdown("### Quick Response:")
+# Show buttons only when feedback is expected (after bank questions)
+if st.session_state.flowchart_state.get("show_feedback_buttons", False):
+    st.markdown("##### Grade Response (optional):")
     cols = st.columns(2)
+    
+    # Check if a button was clicked to show visual feedback
+    button_clicked = st.session_state.flowchart_state.get("button_clicked", None)
+    
     with cols[0]:
-        st.button("👍", on_click=lambda: handle_button_click("accept"), use_container_width=True)
+        button_text = "👍 ✓" if button_clicked == "accept" else "👍"
+        st.button(button_text, on_click=lambda: handle_button_click("accept"), use_container_width=True)
     with cols[1]:
-        st.button("👎", on_click=lambda: handle_button_click("disregard"), use_container_width=True)
+        button_text = "👎 ✓" if button_clicked == "disregard" else "👎"
+        st.button(button_text, on_click=lambda: handle_button_click("disregard"), use_container_width=True)
 
 # ---------- Text Input ----------
 if st.session_state.flowchart_state["stage"] != "complete":
@@ -543,22 +910,36 @@ if st.session_state.flowchart_state["stage"] != "complete":
         st.session_state.guided_messages.append(user_msg)
         
         with st.chat_message("user"):
+            st.markdown("**User** • *" + user_msg["ts"] + "*")
             st.markdown(prompt)
         
         # Process transition
         result = handle_flowchart_transition(prompt)
         st.session_state.flowchart_state["stage"] = result["next_stage"]
         
+        # Update feedback button visibility
+        st.session_state.flowchart_state["show_feedback_buttons"] = result.get("show_feedback_buttons", False)
+        
         if result.get("use_llm"):
             # Generate LLM response
-            context, _ = retrieve_context(prompt)
-            system_prompt = build_system_prompt(mode="guided") + f"\n\nContext:\n{context}"
+            if result.get("api_context"):
+                # Use specific context for this response
+                context = result["api_context"]
+                system_prompt = build_system_prompt(mode="guided")
+            else:
+                # Use standard RAG context
+                context, _ = retrieve_context(prompt)
+                system_prompt = build_system_prompt(mode="guided") + f"\n\nContext:\n{context}"
             
             with st.chat_message("assistant"):
+                # Show header first
+                timestamp = now_ts()
+                st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
+                
                 placeholder = st.empty()
                 acc = ""
                 for chunk in openai_complete(
-                    history=st.session_state.guided_messages,
+                    history=[{"role": "user", "content": context}],
                     system_text=system_prompt,
                     model_name="gpt-4o-mini",
                     stream=True,
@@ -570,19 +951,30 @@ if st.session_state.flowchart_state["stage"] != "complete":
                 bot_msg = {
                     "role": "assistant",
                     "content": acc.strip(),
-                    "ts": now_ts()
+                    "ts": timestamp
                 }
                 st.session_state.guided_messages.append(bot_msg)
+                
+                # Clear button state after assistant responds
+                if "button_clicked" in st.session_state.flowchart_state:
+                    del st.session_state.flowchart_state["button_clicked"]
+                    
         elif result["bot_response"]:
+            timestamp = now_ts()
             with st.chat_message("assistant"):
+                st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
                 st.markdown(result["bot_response"])
                 
             bot_msg = {
                 "role": "assistant",
                 "content": result["bot_response"],
-                "ts": now_ts()
+                "ts": timestamp
             }
             st.session_state.guided_messages.append(bot_msg)
+            
+            # Clear button state after assistant responds
+            if "button_clicked" in st.session_state.flowchart_state:
+                del st.session_state.flowchart_state["button_clicked"]
         
         st.rerun()
 
@@ -595,12 +987,13 @@ else:
             "current_question": None,
             "current_response_type": None,
             "needs_followup": False,
-            "all_domains_covered": False
+            "all_domains_covered": False,
+            "show_feedback_buttons": False
         }
         st.session_state.guided_messages = [
             {
                 "role": "assistant",
-                "content": "Welcome back! Ready to review more observations?",
+                "content": "Welcome back! I'm ready to share more observations when you are. Just ask for the 'next question' to begin.",
                 "ts": now_ts()
             }
         ]
