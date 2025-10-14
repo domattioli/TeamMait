@@ -468,6 +468,8 @@ Respond with ONLY the single category name (e.g., "accept_passive", "clarify_act
 
 def detect_next_question_request(user_input: str) -> bool:
     """Detect if user is explicitly requesting the next question using LLM classification."""
+    print(f"DEBUG DETECT: Input: {user_input}")
+    st.write(f"🔍 DEBUG: Checking if '{user_input}' is a next question request...")
     
     # Get context about what just happened
     last_message = ""
@@ -511,7 +513,9 @@ def detect_next_question_request(user_input: str) -> bool:
         next_question_keywords = [
             "next question", "next observation", "next prompt", "give me another",
             "show me another", "what's next", "another question", "move to next",
-            "next item", "continue with questions", "more questions"
+            "next item", "continue with questions", "more questions",
+            "please give me your next observation", "give me your next observation",
+            "next", "move on", "another"
         ]
         
         positive_responses = [
@@ -540,9 +544,14 @@ def detect_next_question_request(user_input: str) -> bool:
         )
         
         classification = response.choices[0].message.content.strip().lower()
+        print(f"DEBUG DETECT: LLM classification: {classification}")
+        st.write(f"🤖 DEBUG: LLM said: {classification}")
         
         # Return True if LLM says "yes" (user wants next question)
-        return classification == "yes"
+        result = classification == "yes"
+        print(f"DEBUG DETECT: Final result: {result}")
+        st.write(f"✅ DEBUG: Final LLM result: {result}")
+        return result
             
     except Exception as e:
         print(f"Error in LLM next question detection: {e}")
@@ -552,7 +561,9 @@ def detect_next_question_request(user_input: str) -> bool:
         next_question_keywords = [
             "next question", "next observation", "next prompt", "give me another",
             "show me another", "what's next", "another question", "move to next",
-            "next item", "continue with questions", "more questions"
+            "next item", "continue with questions", "more questions",
+            "please give me your next observation", "give me your next observation",
+            "next", "move on", "another", "what else"
         ]
         
         positive_responses = [
@@ -568,9 +579,12 @@ def detect_next_question_request(user_input: str) -> bool:
             "i'm listening", "im listening", "proceed", "continue"
         ]
         
-        return (any(phrase in user_lower for phrase in next_question_keywords) or 
+        fallback_result = (any(phrase in user_lower for phrase in next_question_keywords) or 
                 any(response in user_lower for response in positive_responses) or
                 any(indicator in user_lower for indicator in readiness_indicators))
+        print(f"DEBUG DETECT: Fallback keyword result: {fallback_result}")
+        st.write(f"🔤 DEBUG: Fallback keyword result: {fallback_result}")
+        return fallback_result
 
 def detect_decline_to_engage(user_input: str) -> bool:
     """Detect if user is declining to engage further with current topic using LLM classification."""
@@ -765,9 +779,13 @@ def handle_flowchart_transition(user_input: str) -> dict:
     # PRIORITY CHECK: Check for next question request 
     # BUT NOT if we're in prompt stage (responding to bank question) - let stage logic handle it first
     # ALSO NOT if we just offered analysis and user declined it
+    print(f"DEBUG FLOWCHART: Current stage: {stage}, user input: {user_input[:50]}...")
+    st.write(f"🎯 DEBUG: Stage={stage}, checking next question for: {user_input[:50]}...")
     if stage != "prompt" and detect_next_question_request(user_input):
+        print(f"DEBUG FLOWCHART: Next question request detected!")
         question = get_next_question()
         if question:
+            print(f"DEBUG FLOWCHART: Got question: {question[:50]}...")
             # Ensure we return ONLY the bank question, no LLM generation
             return {
                 "next_stage": "prompt",
@@ -777,6 +795,7 @@ def handle_flowchart_transition(user_input: str) -> dict:
                 "use_llm": False  # Explicitly prevent LLM usage
             }
         else:
+            print(f"DEBUG FLOWCHART: No more questions available")
             # Check if completion box is checked
             completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
             if completion_checked:
@@ -803,6 +822,37 @@ def handle_flowchart_transition(user_input: str) -> dict:
         }
     
     elif stage == "prompt":
+        # FIRST check if user wants the next question, even while responding to current prompt
+        if detect_next_question_request(user_input):
+            print(f"DEBUG FLOWCHART: Next question request detected in prompt stage!")
+            question = get_next_question()
+            if question:
+                print(f"DEBUG FLOWCHART: Got next question: {question[:50]}...")
+                return {
+                    "next_stage": "prompt",
+                    "bot_response": format_prompt_message(question),
+                    "show_buttons": True,
+                    "show_feedback_buttons": True,
+                    "use_llm": False
+                }
+            else:
+                print(f"DEBUG FLOWCHART: No more questions available from prompt stage")
+                # Check if completion box is checked
+                completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
+                if completion_checked:
+                    completion_msg = "All questions have been reviewed and marked complete! Great work on finishing the guided interaction."
+                else:
+                    completion_msg = "All questions have been reviewed! Please remember to check the completion box in the sidebar to mark this section as finished before moving on to other parts of the session."
+                
+                return {
+                    "next_stage": "complete",
+                    "bot_response": completion_msg,
+                    "show_buttons": False,
+                    "show_feedback_buttons": False,
+                    "use_llm": False
+                }
+        
+        # If not requesting next question, process as response to current observation
         response_type = detect_response_type(user_input)
         state["current_response_type"] = response_type
         
