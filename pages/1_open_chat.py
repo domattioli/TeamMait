@@ -37,7 +37,7 @@ except ImportError:
     Document = None
 
 # ---------- Page & Theme ----------
-st.set_page_config(page_title="TeamMait Private Conversation", page_icon="", layout="wide")
+st.set_page_config(page_title="Open Chat", page_icon="", layout="wide")
 
 # ---------- Simple avatars (SVG data URIs) ----------
 from urllib.parse import quote as _quote  # noqa: E402
