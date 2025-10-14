@@ -67,27 +67,42 @@ st.markdown("""
 ## Welcome!
 
 TeamMait is a peer-support assistant designed to help expert clinicians review and analyze 
-therapy session transcripts. This tool provides two modes of interaction:
+therapy session transcripts. This tool provides two modes of interaction to help you evaluate
+therapist performance in PE (Prolonged Exposure) therapy sessions.
 
 ### Instructions
 
-#### Mode 1: Open-Ended Chat (To-Do: change name)
-- Ask any questions about the therapy transcript
-- Request evidence and quotes from the session
-- Explore clinical observations freely
-- Export your conversation for later review
+#### Phase 1: Open Chat
+- **Interactive Review**: Ask TeamMait any questions about the therapy transcript, therapist behavior, or therapy processes
+- **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts
+- **Flexible Topics**: Ask about specific concepts (e.g., therapeutic alliance, pacing, exposure structure, empathy) or general impressions
+- **Evidence-Based**: Request justification or supporting evidence from TeamMait for any responses, including specific line citations
+- **No Wrong Questions**: Use TeamMait however feels natural for supervision - explore freely
+- **Duration**: Approximately 20 minutes for interaction
 
-#### Mode 2: Guided Interactions (To-Do: change name)
-- TBD instructions
+#### Phase 2: Guided Interaction  
+- **Structured Observations**: TeamMait will share prepared observations about notable aspects of the transcript
+- **Your Choice of Response**: Respond however feels natural - ask for clarification, expand on ideas, disagree, or move on to the next observation
+- **Evidence Available**: Request justification or supporting evidence for any observation, with specific transcript references
+- **Natural Flow**: Progress through observations at your own pace, with options to explore topics in depth
+- **Duration**: Approximately 20 minutes for interaction
+
+Both phases will be followed by brief surveys about your experience (~10 minutes total).
 
 ---
 
 ### Privacy & Consent
             
-To-Do: build consent items. By proceeding, you acknowledge that:
-- All interactions are logged for research purposes
-- Your responses will be anonymized in any publications
-- You may discontinue participation without penalty
+**Research Participation Notice**: By proceeding, you acknowledge that:
+
+- **Data Collection**: All interactions with TeamMait are logged for research purposes to improve AI-assisted clinical supervision
+- **Anonymization**: Your responses will be anonymized in any publications or research outputs
+- **Voluntary Participation**: You may discontinue participation at any time without penalty
+- **Transcript Review**: You will be reviewing therapy session transcripts as part of this research study
+- **Time Commitment**: Total participation time is approximately 50 minutes (40 minutes interaction + 10 minutes surveys)
+- **Research Purpose**: This study aims to understand how AI can best support clinical supervision and training
+
+**Your participation helps advance AI-assisted clinical supervision tools for the therapy community.**
 """)
 
 # Initialize completion status if it doesn't exist
