@@ -573,8 +573,52 @@ def handle_flowchart_transition(user_input: str) -> dict:
     state = st.session_state.flowchart_state
     stage = state["stage"]
     
-    # Check if user has completed all questions but hasn't checked the completion box
+    # Check for inactivity and suggest moving to next question
     questions_asked = len(st.session_state.flowchart_state["questions_asked"])
+    if questions_asked < 4 and stage == "open_discussion":
+        # Get the timestamp of the last message
+        last_message_time = None
+        if st.session_state.guided_messages:
+            last_message = st.session_state.guided_messages[-1]
+            if "ts" in last_message:
+                try:
+                    # Parse the timestamp (format: HH:MM:SS)
+                    last_ts = datetime.strptime(last_message["ts"], "%H:%M:%S")
+                    # Get today's date and combine with the time
+                    today = datetime.now().date()
+                    last_message_time = datetime.combine(today, last_ts.time())
+                    
+                    # Handle case where the last message was from yesterday (edge case)
+                    current_time = datetime.now()
+                    if last_message_time > current_time:
+                        # Message was from yesterday, subtract a day
+                        from datetime import timedelta
+                        last_message_time = last_message_time - timedelta(days=1)
+                    
+                    # Check if more than 5 minutes have passed
+                    time_diff = current_time - last_message_time
+                    if time_diff.total_seconds() > 300:  # 5 minutes = 300 seconds
+                        # Check if we haven't already offered this in the last few messages
+                        recent_offers = False
+                        for msg in st.session_state.guided_messages[-3:]:  # Check last 3 messages
+                            if ("would you like to move on to the next question" in msg.get("content", "").lower() or
+                                "been a while since we" in msg.get("content", "").lower()):
+                                recent_offers = True
+                                break
+                        
+                        if not recent_offers:
+                            return {
+                                "next_stage": stage,  # Stay in current stage
+                                "bot_response": "It's been a while since we last discussed this topic. Would you like to move on to the next question, or is there anything else you'd like to explore about this observation?",
+                                "show_buttons": False,
+                                "show_feedback_buttons": False,
+                                "use_llm": False
+                            }
+                except (ValueError, AttributeError):
+                    # If timestamp parsing fails, continue with normal flow
+                    pass
+    
+    # Check if user has completed all questions but hasn't checked the completion box
     completion_checked = st.session_state.get("completion_status", {}).get("guided_interaction", False)
     
     # If they've completed all questions and are trying to move on, remind them to check the box
