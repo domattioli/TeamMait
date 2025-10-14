@@ -215,11 +215,28 @@ Respond with ONLY "yes" or "no"."""
             )
     
     def _handle_idle(self, user_input: str) -> StateTransition:
-        """Handle user input when in idle state."""
+        """Handle IDLE state - waiting for user to request first question."""
+        if self._wants_next_question(user_input):
+            return self._advance_to_next_question()
+        
+        # If user is just chatting (like saying "hi"), respond naturally with LLM
+        casual_greetings = ["hi", "hello", "hey", "howdy", "greetings", "sup", "yo"]
+        if user_input.lower().strip() in casual_greetings or len(user_input.strip()) < 15:
+            return StateTransition(
+                next_state=ChatbotState.IDLE,
+                use_llm=True,  # Use LLM to respond naturally
+                api_context=f"""The user said: "{user_input}"
+                
+    This appears to be casual conversation or a greeting. Respond warmly and naturally as a peer clinician would. 
+    Remind them that you have observations to share when they're ready, but do it conversationally.
+    Keep it brief and friendly."""
+            )
+        
         return StateTransition(
             next_state=ChatbotState.IDLE,
             bot_response="I'm ready to share my observations when you are. Just ask for the next question when you'd like to begin.",
-            use_llm=False
+            show_buttons=False,
+            show_feedback_buttons=False
         )
     
     def _handle_question_presentation(self, user_input: str) -> StateTransition:
