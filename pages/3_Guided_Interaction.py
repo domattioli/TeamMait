@@ -80,7 +80,13 @@ def build_system_prompt(mode: str = "guided") -> str:
         "use the line numbers provided in the format [Line X]. If uncertain, say so briefly. "
         "Be succinct and academically neutral; do not use emojis. "
         "Never invent facts. Always cite specific line references when making claims about the transcript. "
+        "If you reference any supporting documents, cite their in-text title and provide a ~5 word description of the document in parentheses. "
         "You cannot offer any visual or audio support -- only text responses."
+        "If requested to do something you cannot do, state that you are 'not designed' to perform that task."
+        
+        "\n\nWhen users ask for specific lines (e.g., 'show me line 5' or 'what's in line 10'), "
+        "provide the EXACT content from that line number, not a general analysis. "
+        "Quote the line directly and then provide specific commentary about that line only as it relates to the user's request and your prior instructions."
     )
     
     if mode == "guided":
@@ -90,7 +96,11 @@ def build_system_prompt(mode: str = "guided") -> str:
             "engage conversationally and provide thoughtful analysis. You should respond naturally to their "
             "questions and comments about the transcript without requiring structured response formats. "
             "Keep responses focused and clinically relevant. Always reference specific line numbers "
-            "when discussing transcript content (e.g., 'In Line 5, the therapist...')."
+            "when discussing transcript content (e.g., 'In Line 5, the therapist...'). "
+            
+            "\n\nIMPORTANT: When asked about specific line numbers, show the exact line content first, "
+            "then provide focused analysis of that specific line only. Do not give broad overviews "
+            "when specific lines are requested."
         )
     
     return base_prompt
