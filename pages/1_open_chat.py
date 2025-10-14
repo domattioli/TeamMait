@@ -31,6 +31,10 @@ try:
     from openai import OpenAI  # noqa: F401
 except ImportError:
     OpenAI = None
+try:
+    from docx import Document
+except ImportError:
+    Document = None
 
 # ---------- Page & Theme ----------
 st.set_page_config(page_title="TeamMait Private Conversation", page_icon="", layout="wide")
@@ -175,6 +179,35 @@ with st.sidebar:
     )
     collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
+    def extract_text_from_docx(docx_path: str) -> str:
+        """Extract text content from a DOCX file."""
+        if Document is None:
+            return f"[Error: python-docx not installed. Cannot read {os.path.basename(docx_path)}]"
+        
+        try:
+            doc = Document(docx_path)
+            text_parts = []
+            
+            # Extract text from paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text.strip())
+            
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_text.append(cell.text.strip())
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+            
+            return "\n\n".join(text_parts)
+        
+        except Exception as e:
+            return f"[Error reading {os.path.basename(docx_path)}: {str(e)}]"
+
     # ---------- Reference Conversation (expander) ----------
     @st.cache_resource
     def load_rag_documents():
@@ -212,6 +245,29 @@ with st.sidebar:
                     for k, v in data.items():
                         documents.append(f"{k}: {v}")
                         ids.append(f"supp_json_{os.path.basename(json_path)}_{k}")
+        
+        # Load .docx files from supporting_documents
+        for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
+            content = extract_text_from_docx(docx_path)
+            if content and not content.startswith("[Error"):
+                # Split large documents into chunks for better retrieval
+                words = content.split()
+                chunk_size = 500  # words per chunk
+                
+                if len(words) <= chunk_size:
+                    documents.append(content)
+                    ids.append(f"supp_docx_{os.path.basename(docx_path)}")
+                else:
+                    # Split into chunks
+                    for i in range(0, len(words), chunk_size):
+                        chunk = " ".join(words[i:i + chunk_size])
+                        documents.append(chunk)
+                        ids.append(f"supp_docx_{os.path.basename(docx_path)}_chunk_{i//chunk_size + 1}")
+            else:
+                # Add error message as document for debugging
+                documents.append(content)
+                ids.append(f"supp_docx_error_{os.path.basename(docx_path)}")
+        
         # Seed collection if empty
         if collection.count() == 0 and documents:
             collection.add(documents=documents, ids=ids)
@@ -231,17 +287,19 @@ with st.sidebar:
     with st.expander("Show Referenced Full Conversation", expanded=True):
         if ref_conversation:
             for i, turn in enumerate(ref_conversation):
+                line_num = i + 1  # 1-indexed line numbers
                 is_client = turn.strip().startswith("Client: ")
                 if is_client:
                     # Right-justify client's messages with custom CSS
                     st.markdown(f"""
                     <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
+                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}]</small><br>
                     {turn}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # Italicize therapist's messages
-                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><em>{turn}</em></div>", unsafe_allow_html=True)
+                    # Italicize therapist's messages, but keep line numbers unbolded
+                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}]</small><br><em>{turn}</em></div>", unsafe_allow_html=True)
         else:
             st.info("No reference conversation found in 116_P8_conversation.json.")
 
@@ -459,9 +517,17 @@ for m in st.session_state.messages:
     css_class = "assistant" if role == "assistant" else "user"
     st.markdown(f"<div class='msg {css_class}'>", unsafe_allow_html=True)
     name_for_ui = m.get("display_name", role)
+    
+    # Add role labels for clarity
+    role_label = "TeamMait" if role == "assistant" else "User"
+    
     with st.chat_message(name=name_for_ui, avatar=avatar):
+        # Display role label and timestamp together
+        header_parts = [f"**{role_label}**"]
         if st.session_state.get("show_timestamps", False) and "ts" in m:
-            st.caption(m["ts"])
+            header_parts.append(f"*{m['ts']}*")
+        
+        st.markdown(" • ".join(header_parts))
         st.markdown(m["content"])
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -477,8 +543,12 @@ if prompt is not None and prompt.strip() != "":
     st.session_state.messages.append(user_msg)
 
     with st.chat_message(name=username, avatar=DM_SVG):
+        # Display user label and timestamp
+        header_parts = ["**User**"]
         if st.session_state.get("show_timestamps", False):
-            st.caption(user_msg["ts"])
+            header_parts.append(f"*{user_msg['ts']}*")
+        
+        st.markdown(" • ".join(header_parts))
         st.markdown(prompt)
 
     # ---------- Retrieve context from vector DB ----------
@@ -526,6 +596,13 @@ if prompt is not None and prompt.strip() != "":
     complete_fn = openai_complete if use_openai else claude_complete
 
     with st.chat_message(name="TeamMait", avatar=BOT_SVG):
+        # Show TeamMait header with timestamp
+        timestamp = now_ts()
+        header_parts = ["**TeamMait**"]
+        if st.session_state.get("show_timestamps", False):
+            header_parts.append(f"*{timestamp}*")
+        st.markdown(" • ".join(header_parts))
+        
         if st.session_state["stream_on"]:
             placeholder = st.empty()
             acc = ""
@@ -548,12 +625,12 @@ if prompt is not None and prompt.strip() != "":
             st.markdown(reply_text or "")
 
     if reply_text and reply_text.startswith("[Error:"):
-        st.session_state.errors.append({"when": now_ts(), "model": st.session_state["model"], "msg": reply_text})
+        st.session_state.errors.append({"when": timestamp, "model": st.session_state["model"], "msg": reply_text})
 
     teammait_msg = {
         "role": "assistant",
         "content": reply_text,
-        "ts": now_ts(),
+        "ts": timestamp,
         "display_name": "TeamMait",
     }
     st.session_state.messages.append(teammait_msg)
