@@ -101,6 +101,24 @@ def build_system_prompt(mode: str = "guided") -> str:
             "\n\nIMPORTANT: When asked about specific line numbers, show the exact line content first, "
             "then provide focused analysis of that specific line only. Do not give broad overviews "
             "when specific lines are requested."
+            
+            "\n\nCONVERSATION GUIDELINES:"
+            "\n1. AVOID REPETITIVE PHRASES: Do not start responses with 'It sounds like...' repeatedly. "
+            "Vary your conversation starters: 'I understand...', 'That's an important point...', "
+            "'You raise a valid concern...', 'Looking at the transcript...', or respond directly to their statement."
+            
+            "\n2. ETHICAL/PROFESSIONAL CONCERNS: If the user makes a claim that evidence in the transcript"
+            "may be used to support or contradict, provide specific line references and "
+            "professional assessment. Do not deflect - address the claim directly."
+            
+            "\n3. USER INTENT RECOGNITION: Pay careful attention to what users actually say. If they say "
+            "something 'has nothing to do with' a topic, don't suggest it does without evidence. If they want to discuss "
+            "something else, acknowledge this and engage with their new topic (as long as it is relevant to your prior instructions). "
+            "Respect their expertise and clinical judgment. If a request is out of scope, politely state you are 'not designed' to perform that task."
+            
+            "\n4. SUBSTANTIVE ENGAGEMENT: Provide analysis and insights, not just questions. When users "
+            "raise concerns, offer your professional assessment based on the transcript evidence rather "
+            "than asking for more clarification. It is important that you take on the persona of a collaborative peer, not just a question-asking bot."
         )
     
     return base_prompt
@@ -458,23 +476,23 @@ def detect_next_question_request(user_input: str) -> bool:
     
     classification_prompt = f"""You are analyzing a user's response in a clinical supervision conversation to determine if they want to proceed to the next structured observation/question.
 
-Context: {context_info}
+    Context: {context_info}
 
-The user said: "{user_input}"
+    The user said: "{user_input}"
 
-Does this response indicate that the user wants to:
-- Move to the next structured observation/question from the question bank
-- Start or continue with the structured review process  
-- Proceed to the next item in the guided interaction
-- Begin the guided interaction (if at the start)
+    Does this response indicate that the user wants to:
+    - Move to the next structured observation/question from the question bank
+    - Start or continue with the structured review process  
+    - Proceed to the next item in the guided interaction
+    - Begin the guided interaction (if at the start)
 
-This includes:
-- Direct requests like "next question" or "what's next"
-- Expressions of readiness like "ready", "let's go", "I'm listening"
-- Positive responses to offers like "yes", "sure", "go ahead"
-- Indicating they want to continue or proceed
+    This includes:
+    - Direct requests like "next question" or "what's next"
+    - Expressions of readiness like "ready", "let's go", "I'm listening"
+    - Positive responses to offers like "yes", "sure", "go ahead"
+    - Indicating they want to continue or proceed
 
-Respond with ONLY "yes" if they want the next question/observation, or "no" if they want to continue current discussion. No explanation needed."""
+    Respond with ONLY "yes" if they want the next question/observation, or "no" if they want to continue current discussion. No explanation needed."""
 
     client = get_openai_client()
     if client is None:
@@ -715,15 +733,15 @@ def handle_flowchart_transition(user_input: str) -> dict:
                 
                 analysis_context = f"""The user has accepted your offer to provide an analysis about {analysis_topic}. 
 
-Your previous message offered: "{last_message_content}"
+                                    Your previous message offered: "{last_message_content}"
 
-Now provide the detailed, specific analysis that you offered. Focus on {analysis_topic} with:
-- Specific evidence from the transcript with line number citations
-- Clear observations about therapist skills and techniques
-- Concrete examples from the conversation
-- Professional assessment of effectiveness
+                                    Now provide the detailed, specific analysis that you offered. Focus on {analysis_topic} with:
+                                    - Specific evidence from the transcript with line number citations
+                                    - Clear observations about therapist skills and techniques
+                                    - Concrete examples from the conversation
+                                    - Professional assessment of effectiveness
 
-Be direct and provide the substantive analysis you promised, not more questions."""
+                                    Be direct and provide the substantive analysis you promised, not more questions."""
 
                 return {
                     "next_stage": "open_discussion",
