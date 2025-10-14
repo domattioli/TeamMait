@@ -188,6 +188,112 @@ Respond with ONLY "yes" or "no"."""
         except:
             keywords = ["next question", "next observation", "what's next", "move on"]
             return any(kw in user_input.lower() for kw in keywords)
+    
+    def _advance_to_next_question(self) -> StateTransition:
+        """Advance to the next question in the bank."""
+        # Get next question that hasn't been asked
+        remaining_questions = [q for q in self.question_bank if q not in self.questions_asked]
+        
+        if remaining_questions:
+            next_question = remaining_questions[0]
+            self.questions_asked.append(next_question)
+            self.current_question = next_question
+            
+            formatted_response = f"**{next_question.get('assertion', '')}**\n\n{next_question.get('explanation', '')}"
+            
+            return StateTransition(
+                next_state=ChatbotState.QUESTION_PRESENTATION,
+                bot_response=formatted_response,
+                show_buttons=True,
+                show_feedback_buttons=True
+            )
+        else:
+            # No more questions
+            return StateTransition(
+                next_state=ChatbotState.SESSION_COMPLETE,
+                bot_response="All questions have been reviewed! Great work on finishing the guided interaction."
+            )
+    
+    def _handle_idle(self, user_input: str) -> StateTransition:
+        """Handle user input when in idle state."""
+        return StateTransition(
+            next_state=ChatbotState.IDLE,
+            bot_response="I'm ready to share my observations when you are. Just ask for the next question when you'd like to begin.",
+            use_llm=False
+        )
+    
+    def _handle_question_presentation(self, user_input: str) -> StateTransition:
+        """Handle user response to a presented question."""
+        # Classify response type
+        response_type = self._classify_response(user_input)
+        
+        if response_type == "disregard":
+            return StateTransition(
+                next_state=ChatbotState.OPEN_DISCUSSION,
+                bot_response="Noted. Feel free to ask me anything else about this transcript, or request the next question when you're ready."
+            )
+        elif response_type == "accept":
+            return StateTransition(
+                next_state=ChatbotState.OPEN_DISCUSSION,
+                bot_response="I'm glad you agree with that observation. Is there anything else you'd like to discuss about this topic, or are you ready to move on to my next observation?"
+            )
+        elif response_type in ["correct", "clarify"]:
+            return StateTransition(
+                next_state=ChatbotState.OPEN_DISCUSSION,
+                bot_response="I appreciate your perspective. What specifically would you like to discuss or clarify about this observation?",
+                use_llm=True
+            )
+        else:
+            # Unclear response - use LLM to respond naturally
+            return StateTransition(
+                next_state=ChatbotState.QUESTION_PRESENTATION,
+                use_llm=True,
+                show_buttons=True,
+                show_feedback_buttons=True
+            )
+    
+    def _handle_open_discussion(self, user_input: str) -> StateTransition:
+        """Handle user input during open discussion."""
+        return StateTransition(
+            next_state=ChatbotState.OPEN_DISCUSSION,
+            use_llm=True
+        )
+    
+    def _handle_complete(self, user_input: str) -> StateTransition:
+        """Handle user input when session is complete."""
+        return StateTransition(
+            next_state=ChatbotState.SESSION_COMPLETE,
+            bot_response="The guided interaction has been completed. Thank you for your participation!"
+        )
+    
+    def _classify_response(self, user_input: str) -> str:
+        """Classify user response to a question."""
+        if not self.openai_client:
+            return "unclear"
+        
+        try:
+            prompt = f"""Classify this response to a clinical observation:
+
+User response: "{user_input}"
+
+Categories:
+- "accept" - agrees with observation
+- "correct" - disagrees or wants to correct
+- "clarify" - asks for clarification
+- "disregard" - wants to move on/dismiss
+- "unclear" - doesn't fit above
+
+Respond with ONLY the category name."""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=10,
+                temperature=0.1
+            )
+            return response.choices[0].message.content.strip().lower()
+        except:
+            return "unclear"
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -579,6 +685,9 @@ if st.session_state.state_machine.current_state != ChatbotState.SESSION_COMPLETE
             st.session_state.guided_messages.append(bot_msg)
             # ADD THIS LINE HERE:
             st.session_state.state_machine.set_last_bot_message(transition.bot_response)
+        
+        # Update state machine state
+        st.session_state.state_machine.current_state = transition.next_state
         
         # Clear button state
         st.session_state.state_machine.button_clicked = None
