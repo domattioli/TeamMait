@@ -92,7 +92,28 @@ def build_export():
     export["disclaimer"] = "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting."
     return session_name, json.dumps(export, indent=2)
 
-clicked = st.button("Save and export", disabled=not all_checked)
+# Custom CSS for red save button
+st.markdown("""
+<style>
+div.stButton > button[kind="primary"] {
+    background-color: #ff4b4b;
+    border-color: #ff4b4b;
+    color: white;
+}
+div.stButton > button[kind="primary"]:hover {
+    background-color: #ff2b2b;
+    border-color: #ff2b2b;
+    color: white;
+}
+div.stButton > button[kind="primary"]:active {
+    background-color: #ff1b1b;
+    border-color: #ff1b1b;
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+clicked = st.button("Save and export", disabled=not all_checked, type="primary")
 # To-Do: don't let them click more than once -- once its clicked, lock the entire website.
 
 if clicked:
