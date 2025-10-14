@@ -517,6 +517,18 @@ Respond with ONLY "yes" if they want the next question/observation, or "no" if t
 def detect_decline_to_engage(user_input: str) -> bool:
     """Detect if user is declining to engage further with current topic using LLM classification."""
     
+    # First check if they're asking about a specific topic - this is engagement, not decline
+    engagement_indicators = [
+        "i'd like to discuss", "id like to discuss", "i want to discuss", "i want to talk about",
+        "tell me about", "what about", "can we discuss", "let's talk about", "lets talk about",
+        "i'm interested in", "im interested in", "what do you think about", "your thoughts on",
+        "analysis of", "perspective on", "opinion on", "view on"
+    ]
+    
+    user_lower = user_input.lower()
+    if any(phrase in user_lower for phrase in engagement_indicators):
+        return False  # This is engagement, not decline
+    
     classification_prompt = f"""You are analyzing a user's response in a clinical supervision conversation. The user has been discussing a therapy transcript observation, and you need to determine if they want to disengage from the current topic.
 
 The user said: "{user_input}"
@@ -527,13 +539,13 @@ Does this response indicate that the user wants to:
 - Skip or avoid this particular observation
 - Show disinterest in continuing this line of discussion
 
+IMPORTANT: If the user is asking about a specific clinical topic, concept, or requesting analysis of something specific, this is ENGAGEMENT not disengagement.
+
 Respond with ONLY "yes" if they want to disengage, or "no" if they want to continue engaging. No explanation needed."""
 
     client = get_openai_client()
     if client is None:
         # Fallback to keyword matching if OpenAI is unavailable
-        user_lower = user_input.lower().strip()
-        
         decline_patterns = [
             "no", "nope", "not really", "i don't want", "i dont want", 
             "not interested", "let's move on", "lets move on", "move on",
@@ -559,7 +571,6 @@ Respond with ONLY "yes" if they want to disengage, or "no" if they want to conti
     except Exception as e:
         print(f"Error in LLM decline detection: {e}")
         # Fallback to keyword matching on error
-        user_lower = user_input.lower().strip()
         decline_patterns = [
             "no", "nope", "not really", "i don't want", "i dont want", 
             "not interested", "let's move on", "lets move on", "move on",

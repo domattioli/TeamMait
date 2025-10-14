@@ -66,28 +66,25 @@ st.title("TeamMait: Therapy Transcript Review Assistant")
 st.markdown("""
 ## Welcome!
 
-TeamMait is a peer-support assistant designed to help expert clinicians review and analyze 
-therapy session transcripts. This tool provides two modes of interaction to help you evaluate
-therapist performance in PE (Prolonged Exposure) therapy sessions.
+You are participating as an expert clinician evaluator in this research study. TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript. This tool provides two modes of interaction to help you evaluate therapist performance in PE (Prolonged Exposure) therapy sessions.
+
+**Please begin by reading the therapy session transcript, which you'll find in the sidebar of each interaction page.**
 
 ### Instructions
 
 #### Phase 1: Open Chat
 - **Interactive Review**: Ask TeamMait any questions about the therapy transcript, therapist behavior, or therapy processes
 - **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts
-- **Flexible Topics**: Ask about specific concepts (e.g., therapeutic alliance, pacing, exposure structure, empathy) or general impressions
 - **Evidence-Based**: Request justification or supporting evidence from TeamMait for any responses, including specific line citations
-- **No Wrong Questions**: Use TeamMait however feels natural for supervision - explore freely
-- **Duration**: Approximately 20 minutes for interaction
+- **Flexible Approach**: Use TeamMait however feels natural for your evaluation process
 
 #### Phase 2: Guided Interaction  
 - **Structured Observations**: TeamMait will share prepared observations about notable aspects of the transcript
 - **Your Choice of Response**: Respond however feels natural - ask for clarification, expand on ideas, disagree, or move on to the next observation
 - **Evidence Available**: Request justification or supporting evidence for any observation, with specific transcript references
 - **Natural Flow**: Progress through observations at your own pace, with options to explore topics in depth
-- **Duration**: Approximately 20 minutes for interaction
 
-Both phases will be followed by brief surveys about your experience (~10 minutes total).
+Both phases will be followed by brief surveys about your experience.
 
 ---
 
@@ -99,8 +96,8 @@ This research study investigates how artificial intelligence can enhance clinica
 #### What You Will Do
 - **Review Process**: You will interact with TeamMait while reviewing an anonymized therapy session transcript
 - **Two Interaction Phases**: Participate in both open-ended chat and guided observation discussions
-- **Brief Surveys**: Complete short questionnaires about your experience (approximately 10 minutes total)
-- **Total Time**: Approximately 50 minutes (40 minutes interaction + 10 minutes surveys)
+- **Brief Surveys**: Complete short questionnaires about your experience
+- **Your Role**: Serve as an expert evaluator of therapist performance and AI-assisted supervision tools
 
 #### Data Collection & Privacy
 - **Interaction Logging**: All conversations with TeamMait are recorded for research analysis
