@@ -5,28 +5,28 @@
       "label": "Adherence",
       "assertion": "The therapist maintained focus on imaginal exposure throughout the session, keeping discussion on task and within the PE framework.",
       "explanation": "This consistency ensures exposure gains aren’t diluted by unrelated conversation.",
-      "invitation": "Does this level of consistency feel aligned with effective protocol adherence?"
+      "invitation": "Do you think brief flexibility could have been beneficial without sacrificing therapeutic momentum?"
     },
     {
       "id": "procedural_01",
       "label": "Procedural",
       "assertion": "The therapist transitioned into processing once the client’s distress had subsided and they described feeling calmer and more grounded.",
       "explanation": "This timing reflects PE guidance to process after adequate emotional activation and decline.",
-      "invitation": "Does this transition point reflect sufficient emotional activation for processing?"
+      "invitation": "Would you agree this pacing supported an effective transition from exposure to processing?"
     },
     {
       "id": "relational_01",
       "label": "Relational",
       "assertion": "After the client shared guilt and anger, the therapist offered brief validation before returning to exposure content.",
       "explanation": "That balance maintains rapport while preserving treatment structure.",
-      "invitation": "Does this brief validation seem adequate to maintain rapport within the protocol?"
+      "invitation": "Would you like me to provide an analysis on how effectively rapport and empathic connection were established across the session?"
     },
     {
       "id": "structural_01",
       "label": "Structural",
       "assertion": "The therapist closed the session shortly after processing, summarizing key themes without re-entering exposure content.",
       "explanation": "This closure helps consolidate learning and ensures emotional containment.",
-      "invitation": "Does this closing structure provide enough containment for the client’s state?"
+      "invitation": "Does this seem consistent with effective PE structure and session pacing?"
     }
   ]
 }
