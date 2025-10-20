@@ -103,6 +103,7 @@ This research study investigates how artificial intelligence can enhance clinica
 - **Anonymization**: Your identity will be removed from all data used in research publications or presentations
 - **Data Security**: All data is stored securely and will only be accessed by authorized research personnel
 - **No Clinical Information**: You will not share any personal client information during this study
+- **No Identifying Information**: Please do not include identifying information in your responses or discussions
 
 #### Your Rights
 - **Voluntary Participation**: Your participation is completely voluntary
