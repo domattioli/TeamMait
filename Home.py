@@ -66,7 +66,8 @@ CONSENT_PATH = Path("doc/consent_form.md")
 if not CONSENT_PATH.exists():
     st.error("Consent form file not found. Please check doc/consent_form.md.")
     st.stop()
-    def load_consent_text():
+        
+
 consent_text = load_consent_text()
 
 # try:
