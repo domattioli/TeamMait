@@ -11,8 +11,9 @@ username = st.session_state["user_info"]["username"]
 
 st.title("Post-Session Survey")
 st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Please complete the external Qualtrics survey and then mark this page as done before proceeding.</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:12px;color:#e11d48;margin-top:6px;'><strong>Privacy Reminder:</strong> Please do not include any identifying information in your survey responses.</p>", unsafe_allow_html=True)
 
-st.markdown("[Take the Qualtrics survey](https://www.qualtrics.com)" )
+st.markdown("[Take the Qualtrics survey](https://pennstate.yul1.qualtrics.com/jfe/preview/previewId/c3b97084-8388-451b-9d98-ca2cc3d382c2/SV_3xcIeU2EhzzIdQa?Q_CHL=preview&Q_SurveyVersionID=current)" )
 
 # Initialize completion status if it doesn't exist
 if "completion_status" not in st.session_state:

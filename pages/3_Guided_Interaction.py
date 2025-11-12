@@ -601,7 +601,8 @@ with st.sidebar:
 # ==================== MAIN CONTENT ====================
 
 st.title("Guided Interaction")
-st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:12px;color:#e11d48;margin-top:6px;'><strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:12px;color:#6b7280;margin-bottom:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>", unsafe_allow_html=True)
 
 # Display chat history
 for m in st.session_state.guided_messages:
