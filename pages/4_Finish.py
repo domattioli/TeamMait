@@ -1,6 +1,9 @@
 import streamlit as st
 import json
 from datetime import datetime
+import json as _json
+from oauth2client.service_account import ServiceAccountCredentials
+import gspread
 
 st.set_page_config(page_title="Finish Final", page_icon="")
 
@@ -255,12 +258,12 @@ div.stButton > button[kind="primary"]:active {
 </style>
 """, unsafe_allow_html=True)
 
-clicked = st.button("Save and export", disabled=not all_checked, type="primary")
+clicked = st.button("Finish & Exit Study", disabled=not all_checked, type="primary")
 # To-Do: don't let them click more than once -- once its clicked, lock the entire website.
 
 if clicked:
     if not all_checked:
-        st.warning("Cannot save: not all items are marked done.")
+        st.warning("Cannot exit: not all items are marked done.")
     else:
         session_name, json_data = build_export()
         st.download_button(label="Download consolidated JSON", data=json_data, file_name=f"{session_name}.json", mime="application/json")
@@ -270,9 +273,6 @@ if clicked:
             creds = st.secrets.get("GOOGLE_CREDENTIALS")
             sheet_name = st.secrets.get("SHEET_NAME")
             if creds and sheet_name:
-                import json as _json
-                from oauth2client.service_account import ServiceAccountCredentials
-                import gspread
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 creds_dict = _json.loads(creds)
                 creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
