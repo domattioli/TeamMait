@@ -1,8 +1,12 @@
 import streamlit as st
 import time
+from chromadb.utils import embedding_functions
 from textwrap import dedent
 from urllib.parse import quote
 import json
+import chromadb
+from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
+from chromadb.config import Settings
 from datetime import datetime
 import os
 from oauth2client.service_account import ServiceAccountCredentials
@@ -18,9 +22,9 @@ try:
 except ImportError:
     pass
 
-import chromadb
-from chromadb.utils import embedding_functions
-from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
+# import chromadb
+# from chromadb.utils import embedding_functions
+# from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
 
 # Optional SDKs (load if installed)
 try:
@@ -101,11 +105,11 @@ username = st.session_state["user_info"]["username"]
 password = st.session_state["user_info"]["password"]
 
 # ---------- Databasing (quick and sloppy) ----------
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-gs_client = gspread.authorize(creds)
-sheet = gs_client.open(st.secrets["SHEET_NAME"]).sheet1
+# scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+# creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+# creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+# gs_client = gspread.authorize(creds)
+# sheet = gs_client.open(st.secrets["SHEET_NAME"]).sheet1
 
 # ---------- Session state ----------
 if "messages" not in st.session_state:
@@ -146,22 +150,42 @@ with st.sidebar:
     st.session_state['model'] = model
 
 
-    # Initialize completion status if it doesn't exist
-    if "completion_status" not in st.session_state:
-        st.session_state["completion_status"] = {}
-    
-    # Sync the checkbox state with the persistent completion tracker
-    persistent_value = st.session_state["completion_status"].get("open_chat", False)
-    st.session_state["include_open_chat"] = persistent_value
+    # Exporting
+    # st.caption("Export data as a .json file")
+    # session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
+    with st.expander( "Save Data", expanded=True):
+        session_name = "tbd_session_name-" + datetime.now().strftime("%Y%m%d")
 
-    def _on_include_open_change():
-        from utils.streamlit_compat import debug_trace
-        # Update the persistent completion tracker when checkbox changes
-        current_value = st.session_state.get("include_open_chat", False)
-        st.session_state["completion_status"]["open_chat"] = current_value
-        debug_trace("completion_status.open_chat", current_value, "Open Chat")
+        metadata = {
+            "app_name": "TeamMait Open-Ended Chat",
+            "session_name": session_name,
+            "username": username,
+            "model": model,
+            # "empathy": empathy,
+            # "brevity": brevity,
+            "message_count": len(st.session_state.messages),
+            #"user_notes": user_notes,
+            "exported_at": datetime.now().isoformat(),
+        }
 
-    st.checkbox("Check this when done", key="include_open_chat", on_change=_on_include_open_change)
+        export_data = {
+            "metadata": metadata,
+            "messages": st.session_state.messages,
+            "errors": st.session_state.errors,
+        }
+        json_data = json.dumps(export_data, indent=2)
+        if st.download_button(
+            label="Export chat",
+            data=json_data,
+            file_name=f"{session_name}.json", 
+            mime="application/json",
+            type="primary",
+        ):
+            # Prepare export data
+            messages = st.session_state.messages
+            timestamp = datetime.now().isoformat()
+            # Save to Google Sheets
+            # sheet.append_row([json.dumps(messages), timestamp])
 
     # st.divider()
     # ---------- Chroma initialization (after login) ----------

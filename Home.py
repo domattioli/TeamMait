@@ -66,9 +66,8 @@ CONSENT_PATH = Path("doc/consent_form.md")
 if not CONSENT_PATH.exists():
     st.error("Consent form file not found. Please check doc/consent_form.md.")
     st.stop()
-        
-
-consent_text = load_consent_text()
+    def load_consent_text():
+        consent_text = load_consent_text()
 
 # try:
 #     return CONSENT_PATH.read_text(encoding="utf-8")
@@ -78,7 +77,7 @@ consent_text = load_consent_text()
 
 # ---------- Main Page Content ----------
 st.title("TeamMait: Therapy Transcript Review Assistant")
-
+consent_text = load_consent_text()
 st.markdown("""
 ## Welcome!
 
@@ -104,6 +103,7 @@ A brief survey about your experience will follow this phase.
 ---
 
 # Research Consent & Privacy Notice
+            
 """) + st.markdown(consent_text) + st.markdown("""
 ---
 
