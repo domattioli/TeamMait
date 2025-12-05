@@ -61,21 +61,6 @@ if "user_info" not in st.session_state:
 
 # (sidebar navigation removed)
 
-## Consent document loading
-CONSENT_PATH = Path("doc/consent_form.md")
-if not CONSENT_PATH.exists():
-    st.error("Consent form file not found. Please check doc/consent_form.md.")
-    st.stop()
-        
-
-consent_text = load_consent_text()
-
-# try:
-#     return CONSENT_PATH.read_text(encoding="utf-8")
-# except FileNotFoundError:
-#     st.error("Consent form file not found. Please check doc/consent_form.md.")
-#     return 
-
 # ---------- Main Page Content ----------
 st.title("TeamMait: Therapy Transcript Review Assistant")
 
@@ -103,8 +88,40 @@ A brief survey about your experience will follow this phase.
 
 ---
 
+---
+
 # Research Consent & Privacy Notice
-""") + st.markdown(consent_text) + st.markdown("""
+
+#### Study Purpose
+This research study investigates how artificial intelligence can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
+
+#### What You Will Do
+- **Review Process**: You will interact with TeamMait while reviewing an anonymized therapy session transcript
+- **Two Interaction Phases**: Participate in both open-ended chat and guided observation discussions
+- **Brief Surveys**: Complete short questionnaires about your experience
+- **Your Role**: Serve as an expert evaluator of therapist performance and AI-assisted supervision tools
+
+#### Data Collection & Privacy
+- **Interaction Logging**: All conversations with TeamMait are recorded for research analysis
+- **Anonymization**: Your identity will be removed from all data used in research publications or presentations
+- **Data Security**: All data is stored securely and will only be accessed by authorized research personnel
+- **No Clinical Information**: You will not share any personal client information during this study
+- **No Identifying Information**: Please do not include identifying information in your responses or discussions
+
+#### Your Rights
+- **Voluntary Participation**: Your participation is completely voluntary
+- **Right to Withdraw**: You may discontinue participation at any time without explanation or penalty
+- **Questions Welcome**: You may ask questions about the study at any point
+- **No Direct Benefits**: While there are no direct benefits to you, your participation contributes to advancing clinical training tools
+
+#### Professional Context
+This study is designed for licensed mental health professionals with expertise in Prolonged Exposure (PE) therapy. Your clinical knowledge and experience are valuable for evaluating AI-assisted supervision tools.
+
+#### Contact Information
+If you have questions about this research study, please contact the research team through your institutional channels.
+""")
+
+st.markdown("""
 ---
 
 **By checking the consent box below, you acknowledge that you have read and understood this information and agree to participate in this research study.**
