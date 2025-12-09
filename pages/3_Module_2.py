@@ -1259,65 +1259,289 @@ elif st.session_state.guided_phase == "review":
         len(st.session_state.question_bank),
     )
 
-    st.success(f"### ✅ You've completed all observations!")
-    
-    remaining_time_sec = max(0, int(remaining.total_seconds()))
-    if remaining_time_sec > 0:
-        remaining_min = remaining_time_sec // 60
-        remaining_sec = remaining_time_sec % 60
-        st.markdown(f"**Observations reviewed:** {reviewed} / 4")
-        st.markdown(f"**Time remaining:** {remaining_min}:{remaining_sec:02d}")
-        st.markdown(
-            "Would you like to revisit any of the prior observations to discuss further?"
+    # Check if viewing a specific observation or just the list
+    if st.session_state.current_question_idx < len(st.session_state.question_bank):
+        current_q = st.session_state.question_bank[st.session_state.current_question_idx]
+        current_idx = st.session_state.current_question_idx
+
+        # Show observation header
+        st.markdown(f"### Observation {current_idx + 1} of 4 (Review Mode)")
+        st.divider()
+
+        # Show the observation with better structure
+        with st.container(border=True):
+            st.markdown("**Assertion**")
+            st.markdown(current_q.get("assertion", "Observation"))
+
+            st.markdown("**Context**")
+            st.markdown(current_q.get("explanation", ""))
+
+            st.markdown("**Your thoughts:**")
+            st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
+
+        st.divider()
+        st.info(
+            "Use the **⏭️ Next** button to finish or return to the observation list, "
+            "or type a response to continue discussing this observation."
         )
-    else:
-        st.warning("Your session time has expired.")
-        st.markdown("Please proceed to finish.")
+        st.divider()
 
-    st.divider()
+        # Display conversation history for this observation WITH TIMESTAMPS
+        for msg in st.session_state.all_conversations[current_idx]:
+            with st.chat_message(msg["role"]):
+                # Show timestamp if available
+                timestamp = msg.get("timestamp", "")
+                if timestamp:
+                    try:
+                        dt = datetime.fromisoformat(timestamp)
+                        time_str = dt.strftime("%H:%M")
+                        st.caption(f"_{time_str}_")
+                    except:
+                        pass
+                st.markdown(msg["content"])
 
-    if time_expired or remaining_time_sec <= 0:
-        if st.button(
-            "Finish and Continue to Next Step",
-            type="primary",
-            use_container_width=True,
-        ):
-            st.session_state.guided_phase = "complete"
-            sync_session_to_storage()
-            st.rerun()
-    else:
-        st.markdown("### Revisit observations:")
-        cols = st.columns(4)
+        # User input
+        user_input = st.chat_input("Your response or question...")
 
-        for i in range(min(4, len(st.session_state.question_bank))):
-            with cols[i]:
-                if st.button(f"Obs {i + 1}", use_container_width=True, key=f"revisit_{i}"):
-                    success, error = handle_navigation(i, "review", log_event=False)
-                    if success:
-                        # Calculate elapsed time safely
-                        if st.session_state.guided_session_start is not None:
-                            elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
-                        else:
-                            elapsed = 0
-                        analytics.observation_revisited(
-                            username,
-                            st.session_state.guided_session_id,
-                            st.session_state.current_question_idx,
-                            i,
-                            elapsed,
+        if user_input:
+            # Check if time expired while user was typing
+            if time_expired:
+                st.error("Session time has expired. Your response could not be saved.")
+                st.session_state.guided_phase = "expired"
+                sync_session_to_storage()
+                # st.rerun()
+
+            # Check for navigation intent first
+            if InputParser.detect_navigation_intent(user_input):
+                st.info(InputParser.get_navigation_redirect_message())
+            else:
+                # Log user message - handle None start time
+                if st.session_state.guided_session_start is None:
+                    elapsed_seconds = 0
+                else:
+                    elapsed_seconds = (
+                        datetime.now() - st.session_state.guided_session_start
+                    ).total_seconds()
+                
+                analytics.user_message(
+                    username,
+                    st.session_state.guided_session_id,
+                    current_idx,
+                    elapsed_seconds,
+                    len(user_input),
+                    "message",
+                )
+
+                # Check for duplicates
+                if not st.session_state.message_buffer.add_message(user_input):
+                    st.warning("That looks like the same message. Please type something new.")
+                else:
+                    # Add to history WITH TIMESTAMP
+                    st.session_state.all_conversations[current_idx].append(
+                        {
+                            "role": "user",
+                            "content": user_input,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    )
+
+                    with st.chat_message("user"):
+                        st.caption(f"_{datetime.now().strftime('%H:%M')}_")
+                        st.markdown(user_input)
+
+                        # Generate AI response
+                        current_q_data = st.session_state.question_bank[current_idx]
+                        context = retrieve_context(user_input)
+                        system_prompt = (
+                            build_system_prompt()
+                            + f"\n\nCurrent observation:\n"
+                            f"Assertion: {current_q_data.get('assertion', '')}\n"
+                            f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                            f"Context from transcript:\n{context}"
                         )
-                        st.rerun()
+
+                        with st.chat_message("assistant"):
+                            placeholder = st.empty()
+
+                            # Show loading state
+                            with placeholder.container():
+                                st.markdown("*Thinking...*")
+
+                            try:
+                                # Generate response
+                                acc = ""
+                                start_time = time.time()
+                                first_chunk = True
+
+                                response_gen = OpenAIHandler.openai_complete(
+                                    history=st.session_state.all_conversations[current_idx],
+                                    system_text=system_prompt,
+                                    client=client,
+                                    stream=True,
+                                    max_tokens=512,
+                                    max_retries=2,
+                                    timeout=30,
+                                )
+
+                                for chunk in response_gen:
+                                    if first_chunk:
+                                        placeholder.empty()
+                                        first_chunk = False
+
+                                    acc += chunk
+                                    placeholder.markdown(acc)
+
+                                generation_time = time.time() - start_time
+
+                                # Save to history WITH TIMESTAMP
+                                st.session_state.all_conversations[current_idx].append(
+                                    {
+                                        "role": "assistant",
+                                        "content": acc.strip(),
+                                        "timestamp": datetime.now().isoformat()
+                                    }
+                                )
+
+                                # Log response
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                tokens_estimated = len(acc) // 4
+                                analytics.ai_response(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    current_idx,
+                                    elapsed_seconds,
+                                    len(acc),
+                                    tokens_estimated,
+                                    generation_time,
+                                )
+
+                                sync_session_to_storage()
+                                st.rerun()
+
+                            except (APIRetryableError, APIPermanentError) as e:
+                                error_msg = OpenAIHandler.format_error_message(e)
+                                placeholder.error(error_msg)
+
+                                # Remove the user message to keep state clean
+                                st.session_state.all_conversations[current_idx].pop()
+                                sync_session_to_storage()
+
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                analytics.error_occurred(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    type(e).__name__,
+                                    str(e),
+                                    elapsed_seconds,
+                                    {"context": "ai_response", "observation_idx": current_idx},
+                                )
+
+                                logger.error(f"API error in observation {current_idx}: {e}")
+
+                            except Exception as e:
+                                error_msg = "Unexpected error. Please try again."
+                                placeholder.error(error_msg)
+
+                                # Remove the user message
+                                st.session_state.all_conversations[current_idx].pop()
+                                sync_session_to_storage()
+
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                analytics.error_occurred(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    type(e).__name__,
+                                    str(e),
+                                    elapsed_seconds,
+                                    {"context": "ai_response", "observation_idx": current_idx},
+                                )
+
+                                logger.error(
+                                    f"Unexpected error in observation {current_idx}: {e}",
+                                    exc_info=True,
+                                )
+        
+        # Back button to return to observation list
+        if st.button("← Back to Observation List", use_container_width=True):
+            st.session_state.current_question_idx = len(st.session_state.question_bank)
+            st.rerun()
+
+    else:
+        # Show observation list
+        st.success(f"### ✅ You've completed all observations!")
+        
+        remaining_time_sec = max(0, int(remaining.total_seconds()))
+        if remaining_time_sec > 0:
+            remaining_min = remaining_time_sec // 60
+            remaining_sec = remaining_time_sec % 60
+            st.markdown(f"**Observations reviewed:** {reviewed} / 4")
+            st.markdown(f"**Time remaining:** {remaining_min}:{remaining_sec:02d}")
+            st.markdown(
+                "Would you like to revisit any of the prior observations to discuss further?"
+            )
+        else:
+            st.warning("Your session time has expired.")
+            st.markdown("Please proceed to finish.")
 
         st.divider()
 
-        if st.button(
-            "Finish and Continue to Next Step",
-            type="primary",
-            use_container_width=True,
-        ):
-            st.session_state.guided_phase = "complete"
-            sync_session_to_storage()
-            st.rerun()
+        if time_expired or remaining_time_sec <= 0:
+            if st.button(
+                "Finish and Continue to Next Step",
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state.guided_phase = "complete"
+                sync_session_to_storage()
+                st.rerun()
+        else:
+            st.markdown("### Revisit observations:")
+            cols = st.columns(4)
+
+            for i in range(min(4, len(st.session_state.question_bank))):
+                with cols[i]:
+                    if st.button(f"Obs {i + 1}", use_container_width=True, key=f"revisit_{i}"):
+                        success, error = handle_navigation(i, "review", log_event=False)
+                        if success:
+                            # Calculate elapsed time safely
+                            if st.session_state.guided_session_start is not None:
+                                elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+                            else:
+                                elapsed = 0
+                            analytics.observation_revisited(
+                                username,
+                                st.session_state.guided_session_id,
+                                st.session_state.current_question_idx,
+                                i,
+                                elapsed,
+                            )
+                            st.rerun()
+
+            st.divider()
+
+            if st.button(
+                "Finish and Continue to Next Step",
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state.guided_phase = "complete"
+                sync_session_to_storage()
+                st.rerun()
 
 # ==================== COMPLETE PHASE ====================
 
@@ -1333,7 +1557,7 @@ elif st.session_state.guided_phase == "complete":
     st.success("### Module Complete")
     st.markdown(
         f"""
-    Thank you for completing thi module!
+    Thank you for completing this module!
 
     **Summary:**
     - **Observations reviewed:** {reviewed} / 4
