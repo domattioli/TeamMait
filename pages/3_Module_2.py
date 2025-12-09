@@ -1115,11 +1115,10 @@ elif st.session_state.guided_phase == "active":
                         # Generate AI response
                         current_q_data = st.session_state.question_bank[current_idx]
                         context = retrieve_context(user_input)
+                        observation = current_q_data.get('summary', '')
                         system_prompt = (
                             build_system_prompt()
-                            + f"\n\nCurrent observation:\n"
-                            f"Assertion: {current_q_data.get('assertion', '')}\n"
-                            f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                            + f"\n\nFocus area:\n{observation}\n\n"
                             f"Context from transcript:\n{context}"
                         )
 
@@ -1539,11 +1538,10 @@ elif st.session_state.guided_phase == "review":
                             )
                         else:
                             current_q_data = st.session_state.question_bank[current_idx]
+                            observation = current_q_data.get('summary', '')
                             system_prompt = (
                                 build_system_prompt()
-                                + f"\n\nCurrent observation:\n"
-                                f"Assertion: {current_q_data.get('assertion', '')}\n"
-                                f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                                + f"\n\nFocus area:\n{observation}\n\n"
                                 f"Context from transcript:\n{context}"
                             )
 
