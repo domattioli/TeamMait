@@ -1,0 +1,18 @@
+{
+  "0": [
+    {
+      "role": "user",
+      "content": "test",
+      "timestamp": "2025-12-09T09:19:03.910042"
+    },
+    {
+      "role": "assistant",
+      "content": "It appears you may be testing the system. If you have a specific question or need an analysis of a therapist's performance based on a transcript, please provide the relevant details or text, and I will assist you accordingly.",
+      "timestamp": "2025-12-09T09:19:06.453190"
+    }
+  ],
+  "1": [],
+  "2": [],
+  "3": [],
+  "open_chat": []
+}
