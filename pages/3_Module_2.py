@@ -896,45 +896,6 @@ with st.sidebar:
             "**'Check this when done'** checkbox above when you finish!"
         )
 
-    # Combined Timer Display
-    st.markdown("### Session Timer")
-    
-    # Only show timer if session has started
-    if st.session_state.guided_session_start is None:
-        st.info("**Timer starts after you tell TeamMait to 'start'**")
-    else:
-        # Create combined display
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Time Remaining:**")
-            minutes = max(0, int(remaining.total_seconds() // 60))
-            seconds = max(0, int(remaining.total_seconds() % 60))
-            
-            if time_expired:
-                st.error(f"🔴 00:00")
-            elif remaining.total_seconds() <= 300:  # < 5 min
-                st.error(f"🔴 {minutes:02d}:{seconds:02d}")
-            elif remaining.total_seconds() <= 600:  # < 10 min
-                st.warning(f"🟡 {minutes:02d}:{seconds:02d}")
-            else:
-                st.success(f"🟢 {minutes:02d}:{seconds:02d}")
-        
-        with col2:
-            st.markdown("**Time Elapsed:**")
-            time_used_min = int(elapsed.total_seconds() // 60)
-            time_used_sec = int(elapsed.total_seconds() % 60)
-            st.metric("", f"{time_used_min}:{time_used_sec:02d}")
-        
-        # Single progress bar for overall session progress
-        time_progress = min(elapsed.total_seconds() / SESSION_DURATION.total_seconds(), 1.0)
-        st.progress(time_progress)
-        st.caption(f"_Timer updates when you send messages._")
-
-    # Progress tracker
-    st.markdown("### Progress")
-    st.metric("Observations", f"{st.session_state.current_question_idx} / 4")
-
     # Control buttons
     st.markdown("### Controls")
     
@@ -1015,64 +976,6 @@ st.markdown(
     "Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>",
     unsafe_allow_html=True,
 )
-
-# ==================== STICKY TIMER HEADER ====================
-# Only show timer if session has started (not in intro phase)
-if st.session_state.guided_phase != "intro" and st.session_state.guided_session_start is not None:
-    # Format time display
-    minutes = max(0, int(remaining.total_seconds() // 60))
-    seconds = max(0, int(remaining.total_seconds() % 60))
-    time_used_min = int(elapsed.total_seconds() // 60)
-    time_used_sec = int(elapsed.total_seconds() % 60)
-    progress = st.session_state.current_question_idx + 1
-    
-    # Determine color based on time remaining
-    if time_expired:
-        time_color = "#ef4444"  # red
-        time_status = "⏹️ EXPIRED"
-        time_display = "00:00"
-    elif remaining.total_seconds() <= 300:  # < 5 min
-        time_color = "#dc2626"  # dark red
-        time_status = "🔴 CRITICAL"
-        time_display = f"{minutes:02d}:{seconds:02d}"
-    elif remaining.total_seconds() <= 600:  # < 10 min
-        time_color = "#f59e0b"  # amber
-        time_status = "🟡 WARNING"
-        time_display = f"{minutes:02d}:{seconds:02d}"
-    else:
-        time_color = "#10b981"  # green
-        time_status = "🟢 ACTIVE"
-        time_display = f"{minutes:02d}:{seconds:02d}"
-    
-    st.markdown(f"""
-    <div style="
-        position: sticky;
-        top: 0;
-        background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-        padding: 12px 16px;
-        border-bottom: 2px solid {time_color};
-        border-radius: 0 0 8px 8px;
-        margin: -16px -16px 16px -16px;
-        z-index: 999;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    ">
-        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 500;">
-            <div style="flex: 1;">
-                <span style="font-size: 14px; color: #6b7280;">Session Timer</span>
-                <span style="font-size: 20px; font-weight: 700; color: {time_color}; margin-left: 12px;">{time_display}</span>
-                <span style="font-size: 12px; color: #9ca3af; margin-left: 8px;">({time_status})</span>
-            </div>
-            <div style="text-align: center; margin: 0 24px;">
-                <span style="font-size: 12px; color: #6b7280;">Time Used</span><br>
-                <span style="font-size: 16px; font-weight: 600; color: #374151;">{time_used_min}:{time_used_sec:02d}</span>
-            </div>
-            <div style="text-align: center;">
-                <span style="font-size: 12px; color: #6b7280;">Progress</span><br>
-                <span style="font-size: 16px; font-weight: 600; color: #374151;">Obs {progress}/4</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
 # Show RAG load warnings
 if (
