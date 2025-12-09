@@ -190,3 +190,6 @@
 {"timestamp": "2025-12-09T10:20:35.995939", "event_type": "phase_transition", "username": "test", "session_id": "a7c266cd-608e-42cf-810a-24df028f5523", "elapsed_seconds": 45.07979, "from_phase": "active", "to_phase": "review", "to_question": 3}
 {"timestamp": "2025-12-09T10:20:39.196179", "event_type": "observation_revisited", "username": "test", "session_id": "a7c266cd-608e-42cf-810a-24df028f5523", "elapsed_seconds": 48.280104, "from_idx": 2, "to_idx": 2}
 {"timestamp": "2025-12-09T10:21:39.794828", "event_type": "session_started", "username": "test", "session_id": "506b2e89-d8c0-486c-9557-e432bf9d490b", "elapsed_seconds": null, "phase": "intro"}
+{"timestamp": "2025-12-09T10:23:15.939973", "event_type": "session_started", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": null, "phase": "intro"}
+{"timestamp": "2025-12-09T10:23:24.147702", "event_type": "rag_load_status", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": null, "reference_loaded": true, "supporting_count": 1, "total_documents": 66, "errors": []}
+{"timestamp": "2025-12-09T10:23:26.613942", "event_type": "phase_transition", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": 0, "from_phase": "intro", "to_phase": "active", "observations_completed": 0}
