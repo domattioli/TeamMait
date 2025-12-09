@@ -1,5 +1,5 @@
 """
-Guided Interaction Module - Production Version
+Module 2 - Production Version
 Complete implementation with all issues fixed:
 - Persistent session storage
 - Server-side navigation validation
@@ -445,8 +445,8 @@ def load_question_bank() -> Optional[List[Dict]]:
 # ==================== STREAMLIT APP ====================
 
 st.set_page_config(
-    page_title="Guided Interaction",
-    page_icon="💬",
+    page_title="Module 2",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -715,7 +715,7 @@ with st.sidebar:
     
     # Only show timer if session has started
     if st.session_state.guided_session_start is None:
-        st.info("**Timer starts after you click 'start'**")
+        st.info("**Timer starts after you tell TeamMait to 'start'**")
     else:
         # Create combined display
         col1, col2 = st.columns(2)
@@ -764,7 +764,7 @@ with st.sidebar:
 
 # ==================== MAIN CONTENT ====================
 
-st.title("Guided Interaction")
+st.title("Module 2")
 st.markdown(
     "<p style='font-size:12px;color:#e11d48;margin-top:6px;'>"
     "<strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>",
@@ -795,7 +795,7 @@ if st.session_state.guided_phase == "intro":
     
     st.markdown(
         """
-    ## Welcome to Guided Interaction
+    ## Welcome to Module 2
 
     In this phase, I'll share **4 structured observations** about the therapy session.
 
@@ -827,7 +827,7 @@ if st.session_state.guided_phase == "intro":
             st.rerun()
         elif input_type == "command" and content == "help":
             st.info(InputParser.get_help_message())
-            st.stop()
+            # st.stop()
         elif user_input.lower().strip() == "start":
             st.session_state.guided_session_start = datetime.now()  # START TIMER NOW
             st.session_state.guided_phase = "active"
@@ -861,18 +861,18 @@ elif st.session_state.guided_phase == "active":
 
         # Show the observation with better structure
         with st.container(border=True):
-            st.markdown("**🎯 Assertion**")
+            st.markdown("**Assertion**")
             st.markdown(current_q.get("assertion", "Observation"))
 
-            st.markdown("**📝 Context**")
+            st.markdown("**Context**")
             st.markdown(current_q.get("explanation", ""))
 
-            st.markdown("**💭 Your thoughts:**")
+            st.markdown("**Your thoughts:**")
             st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
 
         st.divider()
         st.info(
-            "💡 Type **'next'** to move to the next observation, "
+            "Type **'next'** to move to the next observation, "
             "**'help'** for commands, or type a response to discuss this observation."
         )
         st.divider()
@@ -897,7 +897,7 @@ elif st.session_state.guided_phase == "active":
         if user_input:
             # Check if time expired while user was typing
             if time_expired:
-                st.error("⏰ Session time has expired. Your response could not be saved.")
+                st.error("Session time has expired. Your response could not be saved.")
                 st.session_state.guided_phase = "expired"
                 sync_session_to_storage()
                 st.rerun()
@@ -943,7 +943,7 @@ elif st.session_state.guided_phase == "active":
                     # Show help message
                     st.info(InputParser.get_help_message())
                     # Don't process further - just show and rerun
-                    st.rerun()
+                    # st.rerun()
                 
                 elif content == "exit":
                     st.warning("Are you sure you want to exit? Type 'confirm exit' to leave.")
@@ -1072,7 +1072,7 @@ elif st.session_state.guided_phase == "active":
                             logger.error(f"API error in observation {current_idx}: {e}")
 
                         except Exception as e:
-                            error_msg = "⚠️ Unexpected error. Please try again."
+                            error_msg = "Unexpected error. Please try again."
                             placeholder.error(error_msg)
 
                             # Remove the user message
@@ -1117,7 +1117,7 @@ elif st.session_state.guided_phase == "expired":
         len(st.session_state.question_bank) - 1,
     )
     
-    st.error("### ⏰ Session Time Expired")
+    st.error("### Session Time Expired")
     
     st.markdown(
         """
@@ -1138,7 +1138,7 @@ elif st.session_state.guided_phase == "expired":
     st.divider()
     
     # Show previous messages with timestamps (NEVER ERASE!)
-    st.markdown("### 📝 Your Previous Discussion")
+    st.markdown("### Your Previous Discussion")
     if st.session_state.all_conversations[current_idx]:
         for msg in st.session_state.all_conversations[current_idx]:
             with st.chat_message(msg["role"]):
@@ -1158,7 +1158,7 @@ elif st.session_state.guided_phase == "expired":
     st.divider()
     
     # Input for final thoughts
-    st.markdown("### 💭 Final Thoughts (Optional)")
+    st.markdown("### Final Thoughts (Optional)")
     user_input = st.chat_input(
         "Type your final thoughts...",
         placeholder="Leave blank to skip to next step"
@@ -1229,7 +1229,7 @@ elif st.session_state.guided_phase == "expired":
                 
             except Exception as e:
                 placeholder.error(
-                    f"⚠️ Could not generate synthesis: {str(e)}"
+                    f"Could not generate synthesis: {str(e)}"
                 )
                 logger.error(f"Synthesis generation error: {e}")
     
@@ -1241,7 +1241,7 @@ elif st.session_state.guided_phase == "expired":
     
     with col1:
         if st.button(
-            "⏭️ Skip Final Thoughts",
+            "Skip Final Thoughts",
             use_container_width=True,
             key="skip_final"
         ):
@@ -1262,7 +1262,7 @@ elif st.session_state.guided_phase == "expired":
     
     # Reminder
     st.info(
-        "💡 **Reminder:** Don't forget to check the "
+        "**Reminder:** Don't forget to check the "
         "**'Check this when done'** checkbox in the sidebar!"
     )
 
@@ -1286,7 +1286,7 @@ elif st.session_state.guided_phase == "review":
             "Would you like to revisit any of the prior observations to discuss further?"
         )
     else:
-        st.warning("⏰ Your session time has expired.")
+        st.warning("Your session time has expired.")
         st.markdown("Please proceed to finish.")
 
     st.divider()
@@ -1345,10 +1345,10 @@ elif st.session_state.guided_phase == "complete":
     else:
         elapsed_seconds = 0
 
-    st.success("### ✅ Guided Interaction Complete")
+    st.success("### Module Complete")
     st.markdown(
         f"""
-    Thank you for completing the guided interaction phase!
+    Thank you for completing thi module!
 
     **Summary:**
     - **Observations reviewed:** {reviewed} / 4

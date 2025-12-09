@@ -26,9 +26,7 @@ class InputParser:
     # Commands that show help
     HELP_COMMANDS = {
         "help",
-        "?",
         "commands",
-        "h",
         "info",
     }
 
@@ -174,10 +172,10 @@ class InputParser:
 - **help** or **?** → Show this help message
 
 **Navigation Rules:**
-- ✅ You can only move **forward** through observations (required for the study)
-- ✅ You can revisit previous observations during the review phase
-- ✅ You can discuss each observation as long as you want
-- ✅ No time limit on individual observations (but 20 minutes total)
+- You can only move **forward** through observations (required for the study)
+- You can revisit previous observations during the review phase
+- You can discuss each observation as long as you want
+- No time limit on individual observations (but 20 minutes total)
 
 **Tips:**
 - Type a question or response to discuss the current observation
@@ -189,7 +187,7 @@ class InputParser:
     def get_typo_warning(typo: str, suggestion: str) -> str:
         """Get user-friendly typo warning."""
         return f"""
-❓ Did you mean **'{suggestion}'**? 
+Did you mean **'{suggestion}'**? 
 
 You typed: `{typo}`
 
