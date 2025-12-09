@@ -187,7 +187,7 @@ def build_system_prompt() -> str:
         
         "Response Format\n\n"
         "Unless the user specifies otherwise:\n"
-        "- Provide 3–5 bullet points OR a flowing paragraph, whichever fits the context better.\n"
+        "- Provide 3–5 bullet points unless asked for a different format.\n"
         "- Prioritize clarity, brevity, and natural human communication.\n"
         "- When providing feedback, sound like a clinical supervisor speaking to a trainee—direct, supportive, specific, and grounded in the transcript.\n"
         "- Integrate evidence naturally into sentences; do not separate into labeled segments.\n\n"
@@ -1015,6 +1015,64 @@ st.markdown(
     "Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>",
     unsafe_allow_html=True,
 )
+
+# ==================== STICKY TIMER HEADER ====================
+# Only show timer if session has started (not in intro phase)
+if st.session_state.guided_phase != "intro" and st.session_state.guided_session_start is not None:
+    # Format time display
+    minutes = max(0, int(remaining.total_seconds() // 60))
+    seconds = max(0, int(remaining.total_seconds() % 60))
+    time_used_min = int(elapsed.total_seconds() // 60)
+    time_used_sec = int(elapsed.total_seconds() % 60)
+    progress = st.session_state.current_question_idx + 1
+    
+    # Determine color based on time remaining
+    if time_expired:
+        time_color = "#ef4444"  # red
+        time_status = "⏹️ EXPIRED"
+        time_display = "00:00"
+    elif remaining.total_seconds() <= 300:  # < 5 min
+        time_color = "#dc2626"  # dark red
+        time_status = "🔴 CRITICAL"
+        time_display = f"{minutes:02d}:{seconds:02d}"
+    elif remaining.total_seconds() <= 600:  # < 10 min
+        time_color = "#f59e0b"  # amber
+        time_status = "🟡 WARNING"
+        time_display = f"{minutes:02d}:{seconds:02d}"
+    else:
+        time_color = "#10b981"  # green
+        time_status = "🟢 ACTIVE"
+        time_display = f"{minutes:02d}:{seconds:02d}"
+    
+    st.markdown(f"""
+    <div style="
+        position: sticky;
+        top: 0;
+        background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        padding: 12px 16px;
+        border-bottom: 2px solid {time_color};
+        border-radius: 0 0 8px 8px;
+        margin: -16px -16px 16px -16px;
+        z-index: 999;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    ">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 500;">
+            <div style="flex: 1;">
+                <span style="font-size: 14px; color: #6b7280;">Session Timer</span>
+                <span style="font-size: 20px; font-weight: 700; color: {time_color}; margin-left: 12px;">{time_display}</span>
+                <span style="font-size: 12px; color: #9ca3af; margin-left: 8px;">({time_status})</span>
+            </div>
+            <div style="text-align: center; margin: 0 24px;">
+                <span style="font-size: 12px; color: #6b7280;">Time Used</span><br>
+                <span style="font-size: 16px; font-weight: 600; color: #374151;">{time_used_min}:{time_used_sec:02d}</span>
+            </div>
+            <div style="text-align: center;">
+                <span style="font-size: 12px; color: #6b7280;">Progress</span><br>
+                <span style="font-size: 16px; font-weight: 600; color: #374151;">Obs {progress}/4</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Show RAG load warnings
 if (
