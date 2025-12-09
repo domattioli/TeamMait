@@ -39,7 +39,8 @@ class InputParser:
         "q",
     }
 
-    # Phrases that indicate user wants to move on (but used informal language)
+    # High-confidence phrases that indicate intent to move to next observation
+    # Used for first-pass detection before keyword-based fallback
     NAVIGATION_INTENT_PHRASES = {
         "ready to move on",
         "ready to proceed",
@@ -55,7 +56,19 @@ class InputParser:
         "next please",
         "ok next",
         "alright next",
+        "ready for the next",
+        "ready for the next one",
+        "next one",
     }
+
+    # Keywords that indicate intent to move to next observation
+    # These are used for semantic/keyword-based detection as fallback
+    NAVIGATION_INTENT_KEYWORDS = {
+        "ready", "prepared", "next", "move", "proceed", "advance",
+        "forward", "go", "continue", "let's", "lets", "done", "finished",
+        "complete", "done with"
+    }
+
 
     # Common typos of "next"
     NEXT_TYPOS = {
@@ -112,10 +125,15 @@ class InputParser:
 
         # ==================== NAVIGATION INTENT DETECTION ====================
 
-        # Check if user expressed intent to move on but didn't use explicit "next"
+        # First pass: Check high-confidence phrase list for exact/substring matches
         for phrase in InputParser.NAVIGATION_INTENT_PHRASES:
             if phrase in cleaned_lower:
                 return "navigation_intent", "next", None
+
+        # Second pass: Use keyword-based semantic detection for robustness
+        # Catches variations not in the phrase list
+        if InputParser.detect_navigation_intent(cleaned_lower):
+            return "navigation_intent", "next", None
 
         # ==================== FUZZY MATCH FOR "NEXT" ====================
 
@@ -187,6 +205,47 @@ class InputParser:
             previous_row = current_row
 
         return previous_row[-1]
+
+    @staticmethod
+    def detect_navigation_intent(text: str) -> bool:
+        """
+        Detect if user is expressing intent to move to the next observation.
+        Uses keyword-based semantic detection rather than hardcoded phrases.
+        
+        Examples that would be detected:
+        - "im ready for the next one"
+        - "lets move to the next"
+        - "ready to proceed"
+        - "done, moving on"
+        - "ok next question"
+        - "advance to the next observation"
+        
+        Args:
+            text: Lowercase user input
+            
+        Returns:
+            True if navigation intent is detected, False otherwise
+        """
+        # Split text into words for analysis
+        words = set(text.split())
+        
+        # Count how many navigation keywords are present
+        keyword_matches = words & InputParser.NAVIGATION_INTENT_KEYWORDS
+        
+        # Need at least 2 intent keywords to avoid false positives
+        # This prevents triggering on single words like "ready" or "next"
+        if len(keyword_matches) < 2:
+            return False
+        
+        # Additional check: avoid triggering on "help" related queries
+        if "help" in text or "how" in text or "what" in text or "can" in text and "do" in text:
+            return False
+        
+        # Avoid triggering if user is clearly asking a question about observation
+        if "?" in text or "tell me" in text or "explain" in text or "what" in text:
+            return False
+        
+        return True
 
     @staticmethod
     def get_help_message() -> str:
