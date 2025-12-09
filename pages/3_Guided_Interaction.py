@@ -1,19 +1,63 @@
+"""
+Guided Interaction Module - Production Version
+Complete implementation with all issues fixed:
+- Persistent session storage
+- Server-side navigation validation
+- Comprehensive error handling
+- Robust API retry logic
+- Typo-tolerant input parsing
+- Analytics logging
+- RAG error handling
+"""
+
 import streamlit as st
 import sys
 import os
-from datetime import datetime
-from enum import Enum
-from dataclasses import dataclass
-from typing import Optional, List, Dict
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
 import json
 import glob
-import random
+import uuid
+import time
+import logging
+import warnings
+
+# Suppress verbose logging from external libraries EARLY
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Configure logging - don't output to console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("logs/guided_interaction.log"),
+    ],
+)
+logger = logging.getLogger(__name__)
+
+# Suppress verbose loggers
+for logger_name in [
+    "sentence_transformers",
+    "transformers",
+    "chromadb",
+    "httpx",
+    "huggingface",
+    "urllib3",
+]:
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 # Fix the import path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+
+# NOTE: Real-time timer updates are NOT possible in Streamlit without user interaction.
+# Streamlit only reruns when there's user input. Timer will update when user sends messages.
+# This is a Streamlit limitation, not a bug. We've combined timer + time used into one display.
 
 # SQLite shim for Chroma
 try:
@@ -36,287 +80,31 @@ try:
 except ImportError:
     Document = None
 
-# ==================== STATE MACHINE DEFINITION ====================
+# Import utility modules
+try:
+    from utils.session_manager import SessionManager
+    from utils.navigation_validator import NavigationValidator
+    from utils.api_handler import OpenAIHandler, APIRetryableError, APIPermanentError
+    from utils.input_parser import InputParser, MessageBuffer
+    from utils.analytics import get_analytics
+except ImportError as e:
+    logger.error(f"Failed to import utilities: {e}")
+    st.error("System initialization error. Please contact support.")
+    st.stop()
 
-class ChatbotState(Enum):
-    """Define all possible chatbot states."""
-    IDLE = "idle"
-    QUESTION_PRESENTATION = "question_presentation"
-    OPEN_DISCUSSION = "open_discussion"
-    SESSION_COMPLETE = "session_complete"
+# ==================== CONSTANTS ====================
 
-@dataclass
-class StateTransition:
-    """Represents a state transition with associated data."""
-    next_state: ChatbotState
-    bot_response: Optional[str] = None
-    use_llm: bool = False
-    show_buttons: bool = False
-    show_feedback_buttons: bool = False
-    api_context: Optional[str] = None
-
-class GuidedInteractionStateMachine:
-    """State machine for managing guided interaction flow."""
-    
-    def __init__(self, question_bank: List[Dict], openai_client):
-        self.current_state = ChatbotState.IDLE
-        self.questions_asked = []
-        self.current_question = None
-        self.current_response_type = None
-        self.question_bank = question_bank
-        self.openai_client = openai_client
-        self.button_clicked = None
-        self.pending_offer = None  # Track if we offered something specific
-        self.last_bot_message = None  # Track last bot message for context
-        
-    def set_last_bot_message(self, message: str):
-        """Store the last bot message for context."""
-        self.last_bot_message = message
-        
-        # Check if bot just made an offer for analysis
-        if "would you like me to provide an analysis" in message.lower() or \
-           "would you like an analysis" in message.lower():
-            # Extract what analysis was offered
-            self.pending_offer = "analysis"
-        else:
-            self.pending_offer = None
-    
-    def transition(self, user_input: str) -> StateTransition:
-        """Main transition logic - routes to state-specific handlers."""
-        
-        # PRIORITY 1: Check if user is accepting a pending offer
-        if self.pending_offer == "analysis" and self._is_accepting_offer(user_input):
-            return self._provide_promised_analysis(user_input)
-        
-        # PRIORITY 2: Check for next question request (but not if in middle of discussion)
-        if self.current_state != ChatbotState.IDLE and \
-           not self.pending_offer and \
-           self._wants_next_question(user_input):
-            return self._advance_to_next_question()
-        
-        # Route to state-specific handler
-        if self.current_state == ChatbotState.IDLE:
-            return self._handle_idle(user_input)
-        elif self.current_state == ChatbotState.QUESTION_PRESENTATION:
-            return self._handle_question_presentation(user_input)
-        elif self.current_state == ChatbotState.OPEN_DISCUSSION:
-            return self._handle_open_discussion(user_input)
-        elif self.current_state == ChatbotState.SESSION_COMPLETE:
-            return self._handle_complete(user_input)
-        
-        # Fallback
-        return StateTransition(next_state=self.current_state)
-    
-    def _is_accepting_offer(self, user_input: str) -> bool:
-        """Check if user is accepting an offered analysis."""
-        acceptance_words = ["yes", "sure", "ok", "okay", "please", "go ahead", "yeah"]
-        user_lower = user_input.lower().strip()
-        return user_lower in acceptance_words or any(word in user_lower for word in acceptance_words)
-    
-    def _provide_promised_analysis(self, user_input: str) -> StateTransition:
-        """Provide the analysis that was previously offered."""
-        current_prompt = self.current_question or {}
-        
-        # Determine what analysis was offered based on last message
-        analysis_topic = "the session"
-        if self.last_bot_message:
-            if "rapport and empathic connection" in self.last_bot_message.lower():
-                analysis_topic = "rapport and empathic connection across the session"
-            elif "therapeutic alliance" in self.last_bot_message.lower():
-                analysis_topic = "therapeutic alliance in the session"
-        
-        analysis_context = f"""The user accepted your offer to provide an analysis about {analysis_topic}.
-
-Your previous message offered: "{self.last_bot_message}"
-
-The user said: "{user_input}"
-
-Now provide the detailed, specific analysis that you offered. Focus on {analysis_topic} with:
-- Specific evidence from the transcript with line number citations
-- Clear observations about therapist skills and techniques
-- Concrete examples from the conversation
-- Professional assessment of effectiveness
-
-Be direct and provide the substantive analysis you promised. Do NOT offer more analysis or ask more questions - just deliver what you promised."""
-
-        # Clear the pending offer
-        self.pending_offer = None
-        
-        return StateTransition(
-            next_state=ChatbotState.OPEN_DISCUSSION,
-            use_llm=True,
-            api_context=analysis_context
-        )
-    
-    # ... rest of the methods stay the same ...
-    
-    def _wants_next_question(self, user_input: str) -> bool:
-        """Detect if user wants the next question using LLM."""
-        # Don't trigger on simple acceptances
-        user_lower = user_input.lower().strip()
-        simple_acceptances = ["yes", "sure", "ok", "okay", "yeah", "yep"]
-        if user_lower in simple_acceptances:
-            return False
-        
-        if not self.openai_client:
-            # Fallback to keyword matching
-            keywords = [
-                "next question", "next observation", "what's next", "another question",
-                "move on", "next"
-            ]
-            return any(kw in user_input.lower() for kw in keywords)
-        
-        try:
-            prompt = f"""Does this user response indicate they want to proceed to the next structured observation/question?
-
-User said: "{user_input}"
-
-Context: They are currently discussing a therapy transcript observation.
-
-If they're just agreeing or saying "yes/sure/ok", that's NOT requesting the next question.
-Only return "yes" if they're explicitly asking for the next question/observation.
-
-Respond with ONLY "yes" or "no"."""
-
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=5,
-                temperature=0.1
-            )
-            return response.choices[0].message.content.strip().lower() == "yes"
-        except:
-            keywords = ["next question", "next observation", "what's next", "move on"]
-            return any(kw in user_input.lower() for kw in keywords)
-    
-    def _advance_to_next_question(self) -> StateTransition:
-        """Advance to the next question in the bank."""
-        # Get next question that hasn't been asked
-        remaining_questions = [q for q in self.question_bank if q not in self.questions_asked]
-        
-        if remaining_questions:
-            next_question = remaining_questions[0]
-            self.questions_asked.append(next_question)
-            self.current_question = next_question
-            
-            formatted_response = f"{next_question.get('assertion', '')}\n\n{next_question.get('explanation', '')}\n\n{next_question.get('invitation', '')}"
-            
-            return StateTransition(
-                next_state=ChatbotState.QUESTION_PRESENTATION,
-                bot_response=formatted_response,
-                show_buttons=True,
-                show_feedback_buttons=True
-            )
-        else:
-            # No more questions
-            return StateTransition(
-                next_state=ChatbotState.SESSION_COMPLETE,
-                bot_response="All questions have been reviewed! Great work on finishing the guided interaction."
-            )
-    
-    def _handle_idle(self, user_input: str) -> StateTransition:
-        """Handle IDLE state - waiting for user to request first question."""
-        if self._wants_next_question(user_input):
-            return self._advance_to_next_question()
-        
-        # If user is just chatting (like saying "hi"), respond naturally with LLM
-        casual_greetings = ["hi", "hello", "hey", "howdy", "greetings", "sup", "yo"]
-        if user_input.lower().strip() in casual_greetings or len(user_input.strip()) < 15:
-            return StateTransition(
-                next_state=ChatbotState.IDLE,
-                use_llm=True,  # Use LLM to respond naturally
-                api_context=f"""The user said: "{user_input}"
-                
-    This appears to be casual conversation or a greeting. Respond warmly and naturally as a peer clinician would. 
-    Remind them that you have observations to share when they're ready, but do it conversationally.
-    Keep it brief and friendly."""
-            )
-        
-        return StateTransition(
-            next_state=ChatbotState.IDLE,
-            bot_response="I'm ready to share my observations when you are. Just ask for the next question when you'd like to begin.",
-            show_buttons=False,
-            show_feedback_buttons=False
-        )
-    
-    def _handle_question_presentation(self, user_input: str) -> StateTransition:
-        """Handle user response to a presented question."""
-        # Classify response type
-        response_type = self._classify_response(user_input)
-        
-        if response_type == "disregard":
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="Noted. Feel free to ask me anything else about this transcript, or request the next question when you're ready."
-            )
-        elif response_type == "accept":
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="I'm glad you agree with that observation. Is there anything else you'd like to discuss about this topic, or are you ready to move on to my next observation?"
-            )
-        elif response_type in ["correct", "clarify"]:
-            return StateTransition(
-                next_state=ChatbotState.OPEN_DISCUSSION,
-                bot_response="I appreciate your perspective. What specifically would you like to discuss or clarify about this observation?",
-                use_llm=True
-            )
-        else:
-            # Unclear response - use LLM to respond naturally
-            return StateTransition(
-                next_state=ChatbotState.QUESTION_PRESENTATION,
-                use_llm=True,
-                show_buttons=True,
-                show_feedback_buttons=True
-            )
-    
-    def _handle_open_discussion(self, user_input: str) -> StateTransition:
-        """Handle user input during open discussion."""
-        return StateTransition(
-            next_state=ChatbotState.OPEN_DISCUSSION,
-            use_llm=True
-        )
-    
-    def _handle_complete(self, user_input: str) -> StateTransition:
-        """Handle user input when session is complete."""
-        return StateTransition(
-            next_state=ChatbotState.SESSION_COMPLETE,
-            bot_response="The guided interaction has been completed. Thank you for your participation!"
-        )
-    
-    def _classify_response(self, user_input: str) -> str:
-        """Classify user response to a question."""
-        if not self.openai_client:
-            return "unclear"
-        
-        try:
-            prompt = f"""Classify this response to a clinical observation:
-
-User response: "{user_input}"
-
-Categories:
-- "accept" - agrees with observation
-- "correct" - disagrees or wants to correct
-- "clarify" - asks for clarification
-- "disregard" - wants to move on/dismiss
-- "unclear" - doesn't fit above
-
-Respond with ONLY the category name."""
-
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=10,
-                temperature=0.1
-            )
-            return response.choices[0].message.content.strip().lower()
-        except:
-            return "unclear"
+SESSION_DURATION = timedelta(minutes=20)
+OBSERVATION_START_TIME_KEY = "observation_start_time"
+guided_interaction_conversation = "281_P10_conversation.json"
 
 # ==================== HELPER FUNCTIONS ====================
+
 
 def now_ts() -> str:
     """Get current timestamp."""
     return datetime.now().strftime("%H:%M:%S")
+
 
 def get_secret_then_env(name: str) -> str:
     """Get secret from Streamlit secrets or environment variable."""
@@ -329,16 +117,30 @@ def get_secret_then_env(name: str) -> str:
         val = os.getenv(name)
     return val or ""
 
+
 def get_openai_client():
-    """Initialize OpenAI client."""
+    """Initialize OpenAI client with proper error handling."""
     if OpenAI is None:
-        st.error("openai package not installed. Run: pip install openai")
-        return None
+        logger.error("OpenAI package not installed")
+        st.error("System configuration error: OpenAI package not installed.")
+        st.stop()
+
     key = get_secret_then_env("OPENAI_API_KEY")
     if not key:
-        st.error("Missing OPENAI_API_KEY.")
-        return None
-    return OpenAI(api_key=key)
+        logger.error("Missing OPENAI_API_KEY")
+        st.error(
+            "System configuration error: Missing OPENAI_API_KEY. "
+            "Please contact your administrator."
+        )
+        st.stop()
+
+    try:
+        return OpenAI(api_key=key)
+    except Exception as e:
+        logger.error(f"Failed to initialize OpenAI client: {e}")
+        st.error("Failed to initialize AI system. Please try again.")
+        st.stop()
+
 
 def build_system_prompt() -> str:
     """Build system prompt for guided mode."""
@@ -346,187 +148,308 @@ def build_system_prompt() -> str:
         "You are TeamMait, a peer-support assistant for expert clinicians reviewing "
         "therapist performance in a transcript. Your scope is limited strictly to "
         "analyzing the therapist's observable skills in the transcript. "
-        "Anchor every claim to the transcript (and provided docs). When citing the transcript, "
+        "Anchor every claim to the transcript. When citing the transcript, "
         "use the line numbers provided in the format [Line X]. If uncertain, say so briefly. "
         "Be succinct and academically neutral; do not use emojis. "
         "Never invent facts. Always cite specific line references when making claims about the transcript. "
-        
-        "\n\nYou are operating in GUIDED REVIEW mode. You present observations about the transcript "
-        "and engage in natural discussion with the clinician. When they respond to your observations, "
-        "engage conversationally and provide thoughtful analysis. "
-        
-        "\n\nCONVERSATION GUIDELINES:"
-        "\n1. AVOID REPETITIVE PHRASES: NEVER start with 'It sounds like...' or 'It seems like...'. "
-        "\n2. ANSWER DIRECT QUESTIONS: When users ask questions, answer them directly with substantive guidance."
-        "\n3. SUBSTANTIVE ENGAGEMENT: Provide analysis and insights, not just questions."
-        "\n4. Mimic the tone and style of the collaborative peer clinician you are conversing with."
+        "Engage conversationally and provide thoughtful analysis. Avoid repetitive phrases. "
+        "Provide substantive answers, not just questions."
     )
+
 
 def extract_text_from_docx(docx_path: str) -> str:
     """Extract text content from a DOCX file."""
     if Document is None:
-        return f"[Error: python-docx not installed]"
-    
+        return "[Error: python-docx not installed]"
+
     try:
         doc = Document(docx_path)
         text_parts = []
-        
+
         for paragraph in doc.paragraphs:
             if paragraph.text.strip():
                 text_parts.append(paragraph.text.strip())
-        
+
         for table in doc.tables:
             for row in table.rows:
-                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                row_text = [
+                    cell.text.strip() for cell in row.cells if cell.text.strip()
+                ]
                 if row_text:
                     text_parts.append(" | ".join(row_text))
-        
+
         return "\n\n".join(text_parts)
     except Exception as e:
+        logger.error(f"Error extracting DOCX: {e}")
         return f"[Error: {str(e)}]"
 
-def openai_complete(history, system_text, client, model_name="gpt-4o-mini", stream=False, max_tokens=512):
-    """Complete a chat using OpenAI API."""
-    if client is None:
-        return "" if not stream else iter(())
-    
-    messages = []
-    if system_text:
-        messages.append({"role": "system", "content": system_text})
-    
-    for m in history:
-        if m.get("role") in ("user", "assistant"):
-            messages.append({"role": m["role"], "content": m["content"]})
-    
-    if stream:
-        try:
-            resp = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                stream=True,
-                max_tokens=max_tokens,
-                temperature=0.3
-            )
-            for chunk in resp:
-                delta = getattr(chunk.choices[0].delta, "content", None)
-                if delta:
-                    yield delta
-        except Exception as e:
-            yield f"\n[Error: {e}]"
-    else:
-        try:
-            resp = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=0.3
-            )
-            return (resp.choices[0].message.content or "").strip()
-        except Exception as e:
-            return f"[Error: {e}]"
 
 # ==================== RAG SETUP ====================
 
+
 @st.cache_resource(show_spinner=False)
 def initialize_chroma():
-    """Initialize ChromaDB client and collection."""
-    embed_model = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=embed_model
-    )
-    
-    chroma_client = chromadb.PersistentClient(
-        path="./rag_store",
-        settings=Settings(),
-        tenant=DEFAULT_TENANT,
-        database=DEFAULT_DATABASE,
-    )
-    
-    collection = chroma_client.get_or_create_collection(
-        "therapy",
-        embedding_function=embedding_fn
-    )
-    
-    return chroma_client, collection
+    """Initialize ChromaDB client and collection with error handling."""
+    try:
+        embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+        embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=embed_model
+        )
+
+        chroma_client = chromadb.PersistentClient(
+            path="./rag_store",
+            settings=Settings(),
+            tenant=DEFAULT_TENANT,
+            database=DEFAULT_DATABASE,
+        )
+
+        collection = chroma_client.get_or_create_collection(
+            "therapy", embedding_function=embedding_fn
+        )
+
+        logger.info("ChromaDB initialized successfully")
+        return chroma_client, collection
+    except Exception as e:
+        logger.error(f"Failed to initialize ChromaDB: {e}")
+        raise
+
 
 @st.cache_resource(show_spinner=False)
 def load_rag_documents():
-    """Load all RAG documents and seed ChromaDB collection."""
-    _, collection = initialize_chroma()
-    
+    """Load all RAG documents with comprehensive error handling."""
+    try:
+        _, collection = initialize_chroma()
+    except Exception as e:
+        logger.error(f"Failed to initialize ChromaDB: {e}")
+        return {"reference": False, "supporting": 0, "total": 0, "errors": [str(e)]}
+
     doc_folder = "doc/RAG"
-    supporting_folder = os.path.join(doc_folder, "supporting_documents")
+    load_status = {
+        "reference": False,
+        "supporting": 0,
+        "total": 0,
+        "errors": [],
+    }
+
     documents = []
     ids = []
+
+    # ==================== REFERENCE CONVERSATION ====================
     
-    # Load main reference conversation with line numbers
-    ref_path = os.path.join(doc_folder, "116_P8_conversation.json")
-    if os.path.exists(ref_path):
-        with open(ref_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    ref_path = os.path.join(doc_folder, guided_interaction_conversation )
+
+    if not os.path.exists(ref_path):
+        error_msg = f"Reference conversation not found: {ref_path}"
+        load_status["errors"].append(error_msg)
+        logger.warning(error_msg)
+    else:
+        try:
+            with open(ref_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
             if isinstance(data, dict) and "full_conversation" in data:
-                for i, turn in enumerate(data["full_conversation"]):
-                    line_num = i + 1
-                    numbered_turn = f"[Line {line_num}] {turn}"
-                    documents.append(numbered_turn)
-                    ids.append(f"ref_{i}")
-    
-    # Load supporting documents
-    for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
-        with open(txt_path, "r", encoding="utf-8") as f:
-            documents.append(f.read())
-            ids.append(f"supp_txt_{os.path.basename(txt_path)}")
-    
-    for json_path in glob.glob(os.path.join(supporting_folder, "*.json")):
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                for i, item in enumerate(data):
-                    documents.append(str(item))
-                    ids.append(f"supp_json_{os.path.basename(json_path)}_{i}")
-    
-    for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
-        content = extract_text_from_docx(docx_path)
-        if content and not content.startswith("[Error"):
-            documents.append(content)
-            ids.append(f"supp_docx_{os.path.basename(docx_path)}")
-    
-    # Seed collection if empty
-    if collection.count() == 0 and documents:
-        collection.add(documents=documents, ids=ids)
-    
-    return documents
+                try:
+                    for i, turn in enumerate(data["full_conversation"]):
+                        line_num = i + 1
+                        numbered_turn = f"[Line {line_num}] {turn}"
+                        documents.append(numbered_turn)
+                        ids.append(f"ref_{i}")
+
+                    load_status["reference"] = True
+                    logger.info(
+                        f"Loaded {len(data['full_conversation'])} reference turns"
+                    )
+                except Exception as e:
+                    error_msg = f"Error processing reference conversation: {e}"
+                    load_status["errors"].append(error_msg)
+                    logger.error(error_msg)
+            else:
+                error_msg = "Reference JSON missing 'full_conversation' key"
+                load_status["errors"].append(error_msg)
+                logger.warning(error_msg)
+
+        except json.JSONDecodeError as e:
+            error_msg = f"Reference conversation JSON malformed: {e}"
+            load_status["errors"].append(error_msg)
+            logger.error(error_msg)
+        except Exception as e:
+            error_msg = f"Error reading reference conversation: {e}"
+            load_status["errors"].append(error_msg)
+            logger.error(error_msg)
+
+    # ==================== SUPPORTING DOCUMENTS ====================
+
+    supporting_folder = os.path.join(doc_folder, "supporting_documents")
+
+    if not os.path.exists(supporting_folder):
+        logger.warning(f"Supporting documents folder not found: {supporting_folder}")
+    else:
+        # Load TXT files
+        for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    documents.append(content)
+                    ids.append(f"supp_txt_{os.path.basename(txt_path)}")
+                    load_status["supporting"] += 1
+            except Exception as e:
+                logger.error(f"Error loading {txt_path}: {e}")
+
+        # Load JSON files
+        for json_path in glob.glob(os.path.join(supporting_folder, "*.json")):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        for i, item in enumerate(data):
+                            documents.append(str(item))
+                            ids.append(
+                                f"supp_json_{os.path.basename(json_path)}_{i}"
+                            )
+                        load_status["supporting"] += len(data)
+                    else:
+                        documents.append(str(data))
+                        ids.append(f"supp_json_{os.path.basename(json_path)}")
+                        load_status["supporting"] += 1
+            except Exception as e:
+                logger.error(f"Error loading {json_path}: {e}")
+
+        # Load DOCX files
+        for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
+            try:
+                content = extract_text_from_docx(docx_path)
+                if content and not content.startswith("[Error"):
+                    documents.append(content)
+                    ids.append(f"supp_docx_{os.path.basename(docx_path)}")
+                    load_status["supporting"] += 1
+            except Exception as e:
+                logger.error(f"Error loading {docx_path}: {e}")
+
+    # ==================== SEED COLLECTION ====================
+
+    load_status["total"] = len(documents)
+
+    if documents:
+        try:
+            if collection.count() == 0:
+                collection.add(documents=documents, ids=ids)
+                logger.info(f"Seeded ChromaDB with {len(documents)} documents")
+        except Exception as e:
+            error_msg = f"Error seeding ChromaDB: {e}"
+            load_status["errors"].append(error_msg)
+            logger.error(error_msg)
+
+    return load_status
+
 
 def retrieve_context(query: str, n_results: int = 5) -> str:
     """Retrieve relevant context from ChromaDB."""
-    _, collection = initialize_chroma()
-    results = collection.query(query_texts=[query], n_results=n_results)
-    
-    retrieved_parts = []
-    for docs in results.get("documents", []):
-        retrieved_parts.extend(docs)
-    
-    return " ".join(retrieved_parts)
+    try:
+        _, collection = initialize_chroma()
+        results = collection.query(query_texts=[query], n_results=n_results)
 
-def load_reference_conversation():
+        retrieved_parts = []
+        for docs in results.get("documents", []):
+            retrieved_parts.extend(docs)
+
+        return " ".join(retrieved_parts)
+    except Exception as e:
+        logger.error(f"Error retrieving context: {e}")
+        return ""
+
+
+def load_reference_conversation() -> List[str]:
     """Load the reference conversation for display."""
-    ref_path = os.path.join("doc/RAG", "116_P8_conversation.json")
+    ref_path = os.path.join("doc/RAG", guided_interaction_conversation )
     if os.path.exists(ref_path):
-        with open(ref_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, dict) and "full_conversation" in data:
-                return data["full_conversation"]
+        try:
+            with open(ref_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "full_conversation" in data:
+                    return data["full_conversation"]
+        except Exception as e:
+            logger.error(f"Error loading reference conversation: {e}")
     return []
 
-def load_question_bank():
-    """Load the question bank."""
-    with open("doc/interaction_prompts/interaction_prompts.json", "r") as f:
-        data = json.load(f)
-    return data.get("feedback_items", [])
+
+def load_question_bank() -> Optional[List[Dict]]:
+    """Load and validate the question bank."""
+    question_path = "doc/interaction_prompts/interaction_prompts.json"
+
+    # Check file exists
+    if not os.path.exists(question_path):
+        error_msg = f"Question bank file not found: {question_path}"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    # Parse JSON
+    try:
+        with open(question_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        error_msg = f"Question bank JSON is malformed: {e}"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    # Extract question items
+    if not isinstance(data, dict):
+        error_msg = "Question bank root must be a dict"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    questions = data.get("feedback_items", [])
+
+    # Validate structure
+    if not questions:
+        error_msg = "Question bank is empty"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    if len(questions) < 4:
+        error_msg = f"Question bank has {len(questions)} questions, need at least 4"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    # Validate each question
+    required_fields = {"assertion", "explanation", "invitation"}
+    for i, q in enumerate(questions[:4]):
+        if not isinstance(q, dict):
+            error_msg = f"Question {i + 1} is not a dict"
+            logger.error(error_msg)
+            st.error(f"{error_msg}")
+            st.stop()
+
+        missing_fields = required_fields - set(q.keys())
+        if missing_fields:
+            error_msg = f"Question {i + 1} missing fields: {missing_fields}"
+            logger.error(error_msg)
+            st.error(f"{error_msg}")
+            st.stop()
+
+        for field in required_fields:
+            if not isinstance(q[field], str) or not q[field].strip():
+                error_msg = f"Question {i + 1}: '{field}' is empty"
+                logger.error(error_msg)
+                st.error(f"{error_msg}")
+                st.stop()
+
+    logger.info(f"Successfully validated {len(questions[:4])} questions")
+    return questions[:4]
+
 
 # ==================== STREAMLIT APP ====================
 
-st.set_page_config(page_title="Guided Interaction", page_icon="💬", layout="wide")
+st.set_page_config(
+    page_title="Guided Interaction",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 # Check login
 if "user_info" not in st.session_state:
@@ -535,195 +458,928 @@ if "user_info" not in st.session_state:
     st.stop()
 
 username = st.session_state["user_info"]["username"]
+analytics = get_analytics()
 
 # Initialize OpenAI client
 client = get_openai_client()
 
-# Initialize state machine
-if "state_machine" not in st.session_state:
-    question_bank = load_question_bank()
-    st.session_state.state_machine = GuidedInteractionStateMachine(question_bank, client)
+# Initialize or resume session
+if "guided_session_id" not in st.session_state:
+    # New session
+    st.session_state.guided_session_id = str(uuid.uuid4())
+    session_metadata = SessionManager.create_session(
+        username, st.session_state.guided_session_id
+    )
+    st.session_state.guided_session_start = None  # Don't start timer yet - wait for "start"
+    logger.info(f"Created new session {st.session_state.guided_session_id}")
+    analytics.session_started(username, st.session_state.guided_session_id)
+else:
+    # Resumed session - verify it still exists
+    if not SessionManager.session_exists(
+        username, st.session_state.guided_session_id
+    ):
+        st.warning("Your session has expired. Starting a new one.")
+        st.session_state.guided_session_id = str(uuid.uuid4())
+        session_metadata = SessionManager.create_session(
+            username, st.session_state.guided_session_id
+        )
+        st.session_state.guided_session_start = None  # Don't start timer yet
+        logger.info(
+            f"Session expired, created new session {st.session_state.guided_session_id}"
+        )
 
-# Initialize message history
-if "guided_messages" not in st.session_state:
-    st.session_state.guided_messages = [
-        {
-            "role": "assistant",
-            "content": "Hi, my name is TeamMait. Feel free to ask me any questions about the referenced session transcript. It can be found in the left side panel.\n\nI've made a few observations about the session that we can discuss together. When you're ready, just ask me for the 'next question' and I'll share one with you.",
-            "ts": now_ts()
-        }
-    ]
+# Update session activity
+SessionManager.update_session_activity(username, st.session_state.guided_session_id)
+
+# Load saved conversations
+if "all_conversations" not in st.session_state:
+    saved_conversations = SessionManager.load_conversations(
+        username, st.session_state.guided_session_id
+    )
+    st.session_state.all_conversations = {
+        int(k): v for k, v in saved_conversations.items()
+    }
+
+if "guided_phase" not in st.session_state:
+    st.session_state.guided_phase = "intro"
+
+if "current_question_idx" not in st.session_state:
+    st.session_state.current_question_idx = 0
+
+if "question_bank" not in st.session_state:
+    st.session_state.question_bank = load_question_bank()
+
+if "message_buffer" not in st.session_state:
+    st.session_state.message_buffer = MessageBuffer()
 
 # Load RAG documents
-load_rag_documents()
+rag_status = load_rag_documents()
+if "rag_load_status" not in st.session_state:
+    st.session_state.rag_load_status = rag_status
+    analytics.rag_load_status(
+        username,
+        st.session_state.guided_session_id,
+        rag_status["reference"],
+        rag_status["supporting"],
+        rag_status["total"],
+        rag_status["errors"],
+    )
+
+# ==================== STATE PERSISTENCE ====================
+def sync_session_to_storage():
+    """Sync current session state to persistent storage."""
+    try:
+        # Save conversations
+        SessionManager.save_conversations(
+            username,
+            st.session_state.guided_session_id,
+            st.session_state.all_conversations,
+        )
+
+        # Update metadata
+        metadata = SessionManager.load_session_metadata(
+            username, st.session_state.guided_session_id
+        )
+        if metadata:
+            metadata.update(
+                {
+                    "phase": st.session_state.guided_phase,
+                    "current_question_idx": st.session_state.current_question_idx,
+                    "total_messages": sum(
+                        len(conv)
+                        for conv in st.session_state.all_conversations.values()
+                    ),
+                    "last_activity": datetime.now().isoformat(),
+                }
+            )
+            SessionManager.save_session_metadata(
+                username, st.session_state.guided_session_id, metadata
+            )
+    except Exception as e:
+        logger.error(f"Error syncing session: {e}")
+        # Calculate elapsed time safely
+        if st.session_state.guided_session_start is not None:
+            elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+        else:
+            elapsed = 0
+        analytics.error_occurred(
+            username,
+            st.session_state.guided_session_id,
+            type(e).__name__,
+            str(e),
+            elapsed,
+            {"context": "sync_session_to_storage"},
+        )
+
+
+# ==================== NAVIGATION HANDLER ====================
+def handle_navigation(
+    target_question_idx: int, target_phase: str, log_event: bool = True
+) -> Tuple[bool, Optional[str]]:
+    """
+    Handle navigation with server-side validation.
+
+    Returns:
+        (success, error_message)
+    """
+    current_phase = st.session_state.guided_phase
+    current_idx = st.session_state.current_question_idx
+
+    # Validate
+    is_valid, error_msg = NavigationValidator.validate_navigation(
+        current_phase,
+        current_idx,
+        target_phase,
+        target_question_idx,
+        len(st.session_state.question_bank),
+    )
+
+    if not is_valid:
+        return False, error_msg
+
+    # Record timing with defensive check
+    if st.session_state.guided_session_start is not None:
+        elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+    else:
+        elapsed = 0
+
+    # Log event if moving observations
+    if target_question_idx != current_idx and log_event:
+        analytics.observation_advanced(
+            username,
+            st.session_state.guided_session_id,
+            current_idx,
+            target_question_idx,
+            elapsed,
+            len(st.session_state.all_conversations[current_idx]),
+            elapsed,  # TODO: track per-observation timing
+        )
+
+    # Apply navigation
+    st.session_state.current_question_idx = target_question_idx
+    if target_phase != current_phase:
+        analytics.phase_transition(
+            username,
+            st.session_state.guided_session_id,
+            current_phase,
+            target_phase,
+            elapsed,
+            {"to_question": target_question_idx},
+        )
+        st.session_state.guided_phase = target_phase
+
+    sync_session_to_storage()
+    return True, None
+
+
+# ==================== CALCULATE TIME ====================
+
+# Timer only starts after user says "start"
+if st.session_state.guided_session_start is None:
+    elapsed = timedelta(seconds=0)
+    remaining = SESSION_DURATION
+    time_expired = False
+else:
+    elapsed = datetime.now() - st.session_state.guided_session_start
+    remaining = SESSION_DURATION - elapsed
+    time_expired = remaining.total_seconds() <= 0
+
+# Initialize warning states
+if "time_warning_2min_shown" not in st.session_state:
+    st.session_state.time_warning_2min_shown = False
+
+# Auto-transition to expired if time is up and in active phase
+if time_expired and st.session_state.guided_phase == "active":
+    st.session_state.guided_phase = "expired"
+    elapsed_seconds = elapsed.total_seconds()
+    analytics.session_time_expired(
+        username,
+        st.session_state.guided_session_id,
+        st.session_state.current_question_idx,
+        st.session_state.current_question_idx,
+        sum(len(c) for c in st.session_state.all_conversations.values()),
+        elapsed_seconds,
+    )
+    sync_session_to_storage()
+
+# 2-minute warning
+if (remaining.total_seconds() <= 120 and 
+    remaining.total_seconds() > 0 and 
+    not st.session_state.time_warning_2min_shown and
+    st.session_state.guided_phase in ("active", "review")):
+    
+    st.session_state.time_warning_2min_shown = True
+    st.warning(
+        "**2 MINUTES REMAINING!**\n\n"
+        "Your session will end in 2 minutes. "
+        "Consider wrapping up your current thoughts."
+    )
+    analytics.log_event("two_minute_warning", {
+        "remaining_seconds": remaining.total_seconds(),
+        "observation_idx": st.session_state.current_question_idx
+    }) if hasattr(analytics, 'log_event') else None
 
 # ==================== SIDEBAR ====================
 
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
-    
-    # Completion status
+
+    # Completion checkbox
     if "completion_status" not in st.session_state:
         st.session_state["completion_status"] = {}
-    
-    persistent_value = st.session_state["completion_status"].get("guided_interaction", False)
+
+    persistent_value = st.session_state["completion_status"].get(
+        "guided_interaction", False
+    )
     st.session_state["include_guided_interaction"] = persistent_value
 
     def _on_include_guided_change():
         current_value = st.session_state.get("include_guided_interaction", False)
         st.session_state["completion_status"]["guided_interaction"] = current_value
 
-    st.checkbox("Check this when done", key="include_guided_interaction", on_change=_on_include_guided_change)
+    st.checkbox(
+        "Check this when done",
+        key="include_guided_interaction",
+        on_change=_on_include_guided_change,
+    )
     
+    # Reminder when time is running low or expired
+    if time_expired or (remaining.total_seconds() < 300 and st.session_state.guided_phase in ("active", "review")):
+        st.info(
+            "**Reminder:** Don't forget to check the "
+            "**'Check this when done'** checkbox above when you finish!"
+        )
+
+    # Combined Timer Display
+    st.markdown("### ⏱Session Timer")
+    
+    # Only show timer if session has started
+    if st.session_state.guided_session_start is None:
+        st.info("**Timer starts after you click 'start'**")
+    else:
+        # Create combined display
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Time Remaining:**")
+            minutes = max(0, int(remaining.total_seconds() // 60))
+            seconds = max(0, int(remaining.total_seconds() % 60))
+            
+            if time_expired:
+                st.error(f"🔴 00:00")
+            elif remaining.total_seconds() <= 300:  # < 5 min
+                st.error(f"🔴 {minutes:02d}:{seconds:02d}")
+            elif remaining.total_seconds() <= 600:  # < 10 min
+                st.warning(f"🟡 {minutes:02d}:{seconds:02d}")
+            else:
+                st.success(f"🟢 {minutes:02d}:{seconds:02d}")
+        
+        with col2:
+            st.markdown("**Time Elapsed:**")
+            time_used_min = int(elapsed.total_seconds() // 60)
+            time_used_sec = int(elapsed.total_seconds() % 60)
+            st.metric("", f"{time_used_min}:{time_used_sec:02d}")
+        
+        # Single progress bar for overall session progress
+        time_progress = min(elapsed.total_seconds() / SESSION_DURATION.total_seconds(), 1.0)
+        st.progress(time_progress)
+        st.caption(f"_Timer updates when you send messages (Streamlit limitation)_")
+
     # Progress tracker
     st.markdown("### Progress")
-    questions_asked = len(st.session_state.state_machine.questions_asked)
-    st.progress(min(questions_asked / 4, 1.0))
-    st.caption(f"{questions_asked} / 4 questions reviewed")
-    
+    st.metric("Observations", f"{st.session_state.current_question_idx} / 4")
+
     # Show reference conversation
-    with st.expander("Show Reference Conversation", expanded=True):
+    with st.expander("Reference Conversation", expanded=False):
         ref_conversation = load_reference_conversation()
         if ref_conversation:
-            for i, turn in enumerate(ref_conversation):
-                line_num = i + 1
-                is_client = turn.strip().startswith("Client: ")
+            for i, turn in enumerate(ref_conversation, 1):
+                is_client = turn.strip().startswith("Client:")
                 if is_client:
-                    st.markdown(f"""
-                    <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
-                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}]</small><br>
-                    {turn}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.caption(f"**[Line {i}]** {turn}")
                 else:
-                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}]</small><br><em>{turn}</em></div>", unsafe_allow_html=True)
+                    st.caption(f"*[Line {i}]* {turn}")
+        else:
+            st.warning("Reference conversation not loaded")
 
 # ==================== MAIN CONTENT ====================
 
 st.title("Guided Interaction")
-st.markdown("<p style='font-size:12px;color:#e11d48;margin-top:6px;'><strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>", unsafe_allow_html=True)
-st.markdown("<p style='font-size:12px;color:#6b7280;margin-bottom:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>", unsafe_allow_html=True)
+st.markdown(
+    "<p style='font-size:12px;color:#e11d48;margin-top:6px;'>"
+    "<strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    "<p style='font-size:12px;color:#6b7280;margin-bottom:6px;'>"
+    "Disclaimer: TeamMait may be incorrect or incomplete. Please verify information.</p>",
+    unsafe_allow_html=True,
+)
 
-# Display chat history
-for m in st.session_state.guided_messages:
-    role = m["role"]
-    role_label = "TeamMait" if role == "assistant" else "User"
+# Show RAG load warnings
+if (
+    not st.session_state.rag_load_status["reference"]
+    or st.session_state.rag_load_status["total"] < 5
+):
+    st.warning(
+        "**Limited context available**: "
+        "Reference transcript may not be fully loaded. AI responses may be less informed."
+    )
+
+# ==================== INTRO PHASE ====================
+
+if st.session_state.guided_phase == "intro":
+    # Store that intro has been shown to preserve content
+    if "intro_shown" not in st.session_state:
+        st.session_state.intro_shown = True
     
-    with st.chat_message(role):
-        if "ts" in m:
-            st.markdown(f"**{role_label}** • <small style='color: #888; font-size: 0.8em;'>*{m['ts']}*</small>", unsafe_allow_html=True)
+    st.markdown(
+        """
+    ## Welcome to Guided Interaction
+
+    In this phase, I'll share **4 structured observations** about the therapy session.
+
+    ### How to use:
+    1. **Read each observation** - I'll present an assertion and context
+    2. **Discuss or advance** - You can:
+       - Type a question or comment to discuss the observation further
+       - Type **'next'** to move to the next observation
+    3. **Review phase** - After all 4 observations, you can revisit any to discuss further
+    4. **Time limit** - You have **20 minutes total** for the entire session
+
+    ### Important rules:
+    - You can only move **forward** through observations (required for the experimental design)
+    - You can spend as much time as you want discussing each observation
+    - In the review phase, you can go back and revisit any observation
+    - All your responses are automatically saved
+
+    **Ready to begin?** Type **'start'** below.
+    """
+    )
+
+    user_input = st.chat_input("Type 'start' to begin the observations...")
+
+    if user_input:
+        input_type, content, suggestion = InputParser.parse(user_input, "intro")
+
+        if input_type == "command" and content == "next":
+            st.error("Please type 'start' to begin.")
+            st.rerun()
+        elif input_type == "command" and content == "help":
+            st.info(InputParser.get_help_message())
+            st.stop()
+        elif user_input.lower().strip() == "start":
+            st.session_state.guided_session_start = datetime.now()  # START TIMER NOW
+            st.session_state.guided_phase = "active"
+            st.session_state.current_question_idx = 0
+            elapsed_seconds = 0  # Just started
+            analytics.phase_transition(
+                username,
+                st.session_state.guided_session_id,
+                "intro",
+                "active",
+                elapsed_seconds,
+                {"observations_completed": 0},
+            )
+            sync_session_to_storage()
+            st.rerun()
         else:
-            st.markdown(f"**{role_label}**")
-        st.markdown(m["content"])
+            st.info("Type **'start'** to begin the observations.")
 
-# Response buttons
-st.write(f"DEBUG: Current state is {st.session_state.state_machine.current_state}")  # Debug line
+# ==================== ACTIVE PHASE ====================
 
-def handle_button_click(response_type: str):
-    """Handle quick response button clicks."""
-    st.session_state.state_machine.button_clicked = response_type
-    st.rerun()
+elif st.session_state.guided_phase == "active":
+    if st.session_state.current_question_idx < len(st.session_state.question_bank):
+        current_q = st.session_state.question_bank[
+            st.session_state.current_question_idx
+        ]
+        current_idx = st.session_state.current_question_idx
 
-if st.session_state.state_machine.current_state == ChatbotState.QUESTION_PRESENTATION:
-    st.write(f"DEBUG: In QUESTION_PRESENTATION state") # Debug line
-    st.markdown("##### Grade Response (optional):")
-    cols = st.columns(2)
+        # Show observation header
+        st.markdown(f"### Observation {current_idx + 1} of 4")
+        st.divider()
+
+        # Show the observation with better structure
+        with st.container(border=True):
+            st.markdown("**🎯 Assertion**")
+            st.markdown(current_q.get("assertion", "Observation"))
+
+            st.markdown("**📝 Context**")
+            st.markdown(current_q.get("explanation", ""))
+
+            st.markdown("**💭 Your thoughts:**")
+            st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
+
+        st.divider()
+        st.info(
+            "💡 Type **'next'** to move to the next observation, "
+            "**'help'** for commands, or type a response to discuss this observation."
+        )
+        st.divider()
+
+        # Display conversation history for this observation WITH TIMESTAMPS
+        for msg in st.session_state.all_conversations[current_idx]:
+            with st.chat_message(msg["role"]):
+                # Show timestamp if available
+                timestamp = msg.get("timestamp", "")
+                if timestamp:
+                    try:
+                        dt = datetime.fromisoformat(timestamp)
+                        time_str = dt.strftime("%H:%M")
+                        st.caption(f"_{time_str}_")
+                    except:
+                        pass
+                st.markdown(msg["content"])
+
+        # User input
+        user_input = st.chat_input("Your response or question...")
+
+        if user_input:
+            # Check if time expired while user was typing
+            if time_expired:
+                st.error("⏰ Session time has expired. Your response could not be saved.")
+                st.session_state.guided_phase = "expired"
+                sync_session_to_storage()
+                st.rerun()
+
+            # Parse input
+            input_type, content, suggestion = InputParser.parse(
+                user_input, st.session_state.guided_phase
+            )
+
+            # Log user message - handle None start time
+            if st.session_state.guided_session_start is None:
+                elapsed_seconds = 0
+            else:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            
+            analytics.user_message(
+                username,
+                st.session_state.guided_session_id,
+                current_idx,
+                elapsed_seconds,
+                len(user_input),
+                input_type,
+            )
+
+            if input_type == "command":
+                if content == "next":
+                    # Navigate to next observation
+                    next_idx = current_idx + 1
+                    if next_idx >= len(st.session_state.question_bank):
+                        success, error = handle_navigation(current_idx, "review", log_event=False)
+                        if success:
+                            st.rerun()
+                    else:
+                        success, error = handle_navigation(next_idx, "active")
+                        if success:
+                            st.rerun()
+                        else:
+                            st.error(f"Cannot proceed: {error}")
+                
+                elif content == "help":
+                    # Show help message
+                    st.info(InputParser.get_help_message())
+                    # Don't process further - just show and rerun
+                    st.rerun()
+                
+                elif content == "exit":
+                    st.warning("Are you sure you want to exit? Type 'confirm exit' to leave.")
+
+            elif input_type == "probable_typo":
+                st.warning(InputParser.get_typo_warning(content, suggestion))
+
+            elif input_type == "empty":
+                st.info("Please type a message or command.")
+
+            else:  # Regular message
+                # Check for duplicates
+                if not st.session_state.message_buffer.add_message(user_input):
+                    st.warning("That looks like the same message. Please type something new.")
+                else:
+                    # Add to history WITH TIMESTAMP
+                    st.session_state.all_conversations[current_idx].append(
+                        {
+                            "role": "user",
+                            "content": user_input,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    )
+
+                    with st.chat_message("user"):
+                        st.caption(f"_{datetime.now().strftime('%H:%M')}_")
+                        st.markdown(user_input)
+
+                    # Generate AI response
+                    current_q_data = st.session_state.question_bank[current_idx]
+                    context = retrieve_context(user_input)
+                    system_prompt = (
+                        build_system_prompt()
+                        + f"\n\nCurrent observation:\n"
+                        f"Assertion: {current_q_data.get('assertion', '')}\n"
+                        f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                        f"Context from transcript:\n{context}"
+                    )
+
+                    with st.chat_message("assistant"):
+                        placeholder = st.empty()
+
+                        # Show loading state
+                        with placeholder.container():
+                            st.markdown("*Thinking...*")
+
+                        try:
+                            # Generate response
+                            acc = ""
+                            start_time = time.time()
+                            first_chunk = True
+
+                            response_gen = OpenAIHandler.openai_complete(
+                                history=st.session_state.all_conversations[current_idx],
+                                system_text=system_prompt,
+                                client=client,
+                                stream=True,
+                                max_tokens=512,
+                                max_retries=2,
+                                timeout=30,
+                            )
+
+                            for chunk in response_gen:
+                                if first_chunk:
+                                    placeholder.empty()
+                                    first_chunk = False
+
+                                acc += chunk
+                                placeholder.markdown(acc)
+
+                            generation_time = time.time() - start_time
+
+                            # Save to history WITH TIMESTAMP
+                            st.session_state.all_conversations[current_idx].append(
+                                {
+                                    "role": "assistant",
+                                    "content": acc.strip(),
+                                    "timestamp": datetime.now().isoformat()
+                                }
+                            )
+
+                            # Log response
+                            if st.session_state.guided_session_start is not None:
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            tokens_estimated = len(acc) // 4
+                            analytics.ai_response(
+                                username,
+                                st.session_state.guided_session_id,
+                                current_idx,
+                                elapsed_seconds,
+                                len(acc),
+                                tokens_estimated,
+                                generation_time,
+                            )
+
+                            sync_session_to_storage()
+                            st.rerun()
+
+                        except (APIRetryableError, APIPermanentError) as e:
+                            error_msg = OpenAIHandler.format_error_message(e)
+                            placeholder.error(error_msg)
+
+                            # Remove the user message to keep state clean
+                            st.session_state.all_conversations[current_idx].pop()
+                            sync_session_to_storage()
+
+                            if st.session_state.guided_session_start is not None:
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            analytics.error_occurred(
+                                username,
+                                st.session_state.guided_session_id,
+                                type(e).__name__,
+                                str(e),
+                                elapsed_seconds,
+                                {"context": "ai_response", "observation_idx": current_idx},
+                            )
+
+                            logger.error(f"API error in observation {current_idx}: {e}")
+
+                        except Exception as e:
+                            error_msg = "⚠️ Unexpected error. Please try again."
+                            placeholder.error(error_msg)
+
+                            # Remove the user message
+                            st.session_state.all_conversations[current_idx].pop()
+                            sync_session_to_storage()
+
+                            if st.session_state.guided_session_start is not None:
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            analytics.error_occurred(
+                                username,
+                                st.session_state.guided_session_id,
+                                type(e).__name__,
+                                str(e),
+                                elapsed_seconds,
+                                {"context": "ai_response", "observation_idx": current_idx},
+                            )
+
+                            logger.error(
+                                f"Unexpected error in observation {current_idx}: {e}",
+                                exc_info=True,
+                            )
+
+    else:
+        # All observations done
+        st.session_state.guided_phase = "review"
+        sync_session_to_storage()
+        st.rerun()
+
+# ==================== TIME EXPIRED PHASE ====================
+
+elif st.session_state.guided_phase == "expired":
+    # Initialize warning states
+    if "time_warning_2min_shown" not in st.session_state:
+        st.session_state.time_warning_2min_shown = False
     
-    button_clicked = st.session_state.state_machine.button_clicked
+    current_idx = min(
+        st.session_state.current_question_idx,
+        len(st.session_state.question_bank) - 1,
+    )
     
-    with cols[0]:
-        button_text = "👍 ✓" if button_clicked == "accept" else "👍"
-        st.button(button_text, on_click=lambda: handle_button_click("accept"), use_container_width=True)
-    with cols[1]:
-        button_text = "👎 ✓" if button_clicked == "disregard" else "👎"
-        st.button(button_text, on_click=lambda: handle_button_click("disregard"), use_container_width=True)
-
-# Text input
-if st.session_state.state_machine.current_state != ChatbotState.SESSION_COMPLETE:
-    prompt = st.chat_input("Type your response or elaboration...")
+    st.error("### ⏰ Session Time Expired")
     
-    if prompt:
-        # Add user message
-        user_msg = {
-            "role": "user",
-            "content": prompt,
-            "ts": now_ts()
-        }
-        st.session_state.guided_messages.append(user_msg)
+    st.markdown(
+        """
+    Your 20-minute session has ended.
+    
+    ### Your Discussion is Saved
+    
+    All your messages below are preserved and will be included in your results.
+    
+    ### One More Chance
+    
+    You can share **final thoughts** below for a brief synthesis from TeamMait.
+    
+    Or skip directly to the next step.
+    """
+    )
+    
+    st.divider()
+    
+    # Show previous messages with timestamps (NEVER ERASE!)
+    st.markdown("### 📝 Your Previous Discussion")
+    if st.session_state.all_conversations[current_idx]:
+        for msg in st.session_state.all_conversations[current_idx]:
+            with st.chat_message(msg["role"]):
+                # Show timestamp if available
+                timestamp = msg.get("timestamp", "")
+                if timestamp:
+                    try:
+                        dt = datetime.fromisoformat(timestamp)
+                        time_str = dt.strftime("%H:%M")
+                        st.caption(f"_{time_str}_")
+                    except:
+                        pass
+                st.markdown(msg["content"])
+    else:
+        st.info("No messages yet")
+    
+    st.divider()
+    
+    # Input for final thoughts
+    st.markdown("### 💭 Final Thoughts (Optional)")
+    user_input = st.chat_input(
+        "Type your final thoughts...",
+        placeholder="Leave blank to skip to next step"
+    )
+    
+    if user_input:
+        # Add user message with timestamp
+        st.session_state.all_conversations[current_idx].append(
+            {
+                "role": "user",
+                "content": user_input,
+                "timestamp": datetime.now().isoformat()
+            }
+        )
         
         with st.chat_message("user"):
-            st.markdown(f"**User** • <small style='color: #888; font-size: 0.8em;'>*{user_msg['ts']}*</small>", unsafe_allow_html=True)
-            st.markdown(prompt)
+            st.caption(f"_{datetime.now().strftime('%H:%M')}_")
+            st.markdown(user_input)
         
-        # Process state transition
-        transition = st.session_state.state_machine.transition(prompt)
-        
-        # Generate response
-        if transition.use_llm:
-            # Use LLM to generate response
-            if transition.api_context:
-                context = transition.api_context
-            else:
-                context = retrieve_context(prompt)
+        # Generate synthesis (NOT summary)
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
             
-            system_prompt = build_system_prompt() + f"\n\nContext:\n{context}"
-            
-            with st.chat_message("assistant"):
-                timestamp = now_ts()
-                st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
+            try:
+                with placeholder.container():
+                    st.markdown("*Synthesizing your insights...*")
                 
-                placeholder = st.empty()
+                system_prompt = (
+                    build_system_prompt()
+                    + "\n\n"
+                    "Provide a brief synthesis of the key insights and observations "
+                    "from this discussion. Do NOT summarize what was said. Instead, "
+                    "focus on: What was learned? What patterns emerged? What stands out? "
+                    "Keep it to 2-3 sentences maximum. Be insightful, not repetitive."
+                )
+                
                 acc = ""
-                for chunk in openai_complete(
-                    history=[{"role": "user", "content": prompt}],
+                start_time = time.time()
+                first_chunk = True
+                
+                response_gen = OpenAIHandler.openai_complete(
+                    history=st.session_state.all_conversations[current_idx],
                     system_text=system_prompt,
                     client=client,
                     stream=True,
-                    max_tokens=512
-                ):
+                    max_tokens=256,
+                    max_retries=2,
+                )
+                
+                for chunk in response_gen:
+                    if first_chunk:
+                        placeholder.empty()
+                        first_chunk = False
+                    
                     acc += chunk
                     placeholder.markdown(acc)
                 
-                bot_msg = {
-                    "role": "assistant",
-                    "content": acc.strip(),
-                    "ts": timestamp
-                }
-                st.session_state.guided_messages.append(bot_msg)
-                # ADD THIS LINE HERE:
-                st.session_state.state_machine.set_last_bot_message(acc.strip())         
-        elif transition.bot_response:
-            timestamp = now_ts()
-            with st.chat_message("assistant"):
-                st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
-                st.markdown(transition.bot_response)
+                # Save synthesis with timestamp
+                st.session_state.all_conversations[current_idx].append(
+                    {
+                        "role": "assistant",
+                        "content": acc.strip(),
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
                 
-            bot_msg = {
-                "role": "assistant",
-                "content": transition.bot_response,
-                "ts": timestamp
-            }
-            st.session_state.guided_messages.append(bot_msg)
-            # ADD THIS LINE HERE:
-            st.session_state.state_machine.set_last_bot_message(transition.bot_response)
-        
-        # Update state machine state
-        st.session_state.state_machine.current_state = transition.next_state
-        
-        # Clear button state
-        st.session_state.state_machine.button_clicked = None
-        
-        st.rerun()
+                sync_session_to_storage()
+                
+            except Exception as e:
+                placeholder.error(
+                    f"⚠️ Could not generate synthesis: {str(e)}"
+                )
+                logger.error(f"Synthesis generation error: {e}")
+    
+    # Buttons
+    st.divider()
+    st.markdown("### Next Step")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button(
+            "⏭️ Skip Final Thoughts",
+            use_container_width=True,
+            key="skip_final"
+        ):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
+    
+    with col2:
+        if st.button(
+            "Continue to Results",
+            type="primary",
+            use_container_width=True,
+            key="continue_after_expired"
+        ):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
+    
+    # Reminder
+    st.info(
+        "💡 **Reminder:** Don't forget to check the "
+        "**'Check this when done'** checkbox in the sidebar!"
+    )
 
-else:
-    st.success("Guided interaction session complete!")
-    if st.button("Start New Session"):
-        question_bank = load_question_bank()
-        st.session_state.state_machine = GuidedInteractionStateMachine(question_bank, client)
-        st.session_state.guided_messages = [{
-                "role": "assistant",
-                "content": "Hi, my name is TeamMait. Feel free to ask me any questions about the referenced session transcript. It can be found in the left side panel.\n\nI've made a few observations about the session that we can discuss together. When you're ready, just ask me for the 'next question' and I'll share one with you.",
-                "ts": now_ts()
-            }
-        ]
-        st.rerun()
+# ==================== REVIEW PHASE ====================
+
+elif st.session_state.guided_phase == "review":
+    reviewed = min(
+        st.session_state.current_question_idx,
+        len(st.session_state.question_bank),
+    )
+
+    st.success(f"### ✅ You've completed all observations!")
+    
+    remaining_time_sec = max(0, int(remaining.total_seconds()))
+    if remaining_time_sec > 0:
+        remaining_min = remaining_time_sec // 60
+        remaining_sec = remaining_time_sec % 60
+        st.markdown(f"**Observations reviewed:** {reviewed} / 4")
+        st.markdown(f"**Time remaining:** {remaining_min}:{remaining_sec:02d}")
+        st.markdown(
+            "Would you like to revisit any of the prior observations to discuss further?"
+        )
+    else:
+        st.warning("⏰ Your session time has expired.")
+        st.markdown("Please proceed to finish.")
+
+    st.divider()
+
+    if time_expired or remaining_time_sec <= 0:
+        if st.button(
+            "Finish and Continue to Next Step",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
+    else:
+        st.markdown("### Revisit observations:")
+        cols = st.columns(4)
+
+        for i in range(min(4, len(st.session_state.question_bank))):
+            with cols[i]:
+                if st.button(f"Obs {i + 1}", use_container_width=True, key=f"revisit_{i}"):
+                    success, error = handle_navigation(i, "review", log_event=False)
+                    if success:
+                        # Calculate elapsed time safely
+                        if st.session_state.guided_session_start is not None:
+                            elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+                        else:
+                            elapsed = 0
+                        analytics.observation_revisited(
+                            username,
+                            st.session_state.guided_session_id,
+                            st.session_state.current_question_idx,
+                            i,
+                            elapsed,
+                        )
+                        st.rerun()
+
+        st.divider()
+
+        if st.button(
+            "Finish and Continue to Next Step",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
+
+# ==================== COMPLETE PHASE ====================
+
+elif st.session_state.guided_phase == "complete":
+    reviewed = min(st.session_state.current_question_idx, 4)
+    total_messages = sum(len(c) for c in st.session_state.all_conversations.values())
+    # Defensive check: if session_start is None, default to 0 elapsed time
+    if st.session_state.guided_session_start is not None:
+        elapsed_seconds = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+    else:
+        elapsed_seconds = 0
+
+    st.success("### ✅ Guided Interaction Complete")
+    st.markdown(
+        f"""
+    Thank you for completing the guided interaction phase!
+
+    **Summary:**
+    - **Observations reviewed:** {reviewed} / 4
+    - **Total messages:** {total_messages}
+    - **Time used:** {int(elapsed_seconds // 60)}:{int(elapsed_seconds % 60):02d}
+    """
+    )
+
+    # Log completion
+    analytics.session_completed(
+        username,
+        st.session_state.guided_session_id,
+        reviewed,
+        total_messages,
+        elapsed_seconds,
+        status="success",
+    )
+
+    # Mark session as complete in storage
+    SessionManager.complete_session(
+        username,
+        st.session_state.guided_session_id,
+        {
+            "observations_reviewed": reviewed,
+            "total_messages": total_messages,
+            "elapsed_seconds": elapsed_seconds,
+        },
+    )
+
+    # Clean up message buffer
+    st.session_state.message_buffer.clear()
+
+    if st.button("Continue to Next Step", type="primary", use_container_width=True):
+        st.switch_page("pages/4_Finish.py")
