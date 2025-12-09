@@ -1,5 +1,5 @@
 """
-Module 2 - Production Version
+Module 2 - Production Version (FIXED)
 Complete implementation with all issues fixed:
 - Persistent session storage
 - Server-side navigation validation
@@ -9,6 +9,7 @@ Complete implementation with all issues fixed:
 - Analytics logging
 - RAG error handling
 - EMBEDDED COUNTDOWN TIMER (no server needed)
+- FIXED: Review phase no longer shows duplicate observations
 """
 
 import streamlit as st
@@ -188,7 +189,7 @@ def countdown_timer(should_start=False):
     </head>
     <body>
         <div class="timer-container">
-            <div class="timer-label">⏱️ Time Remaining</div>
+            <div class="timer-label">Time Remaining</div>
             <div class="timer-display" id="display">{time_str}</div>
             <div class="timer-status" id="status">{status_text}</div>
         </div>
@@ -246,72 +247,65 @@ def get_openai_client():
 def build_system_prompt() -> str:
     """Build system prompt for guided mode."""
     return (
-        "You are TeamMait, a peer-support assistant for expert clinicians who are reviewing therapist performance in a transcript. "
-        "Your scope is strictly limited to analyzing observable therapist behaviors in the transcript and anchoring all claims to specific evidence.\n\n"
-        
-        "IMPORTANT: When the user sends a very brief response like \"ok\", \"skip\", \"yes\", \"no\", or similar acknowledgments:\n"
-        "- Simply acknowledge their response by asking if they have other thoughts or they would prefer to skip to the next step.\n"
-        "- DO NOT provide lengthy analysis or feedback if their response is brief or non-substantive.\n"
-        "- Only provide detailed analysis when the user asks a specific question or provides substantive commentary\n\n"
-        "- If their response seems to be a reply in the affirmative (regarding skipping), remind them to click the 'Next' button in the side panel.\n"
+        "You are TeamMait, a peer-support assistant for expert clinicians reviewing therapist performance in a transcript. "
+        "Your responses must follow two behavioral modes: global rules (always active) and analysis mode (only when the user requests supervisory analysis).\n\n"
 
-        "Only provide the detailed behavioral analysis when:\n"
-        "1. The user asks a specific question about the observation\n"
-        "2. The user provides detailed thoughts or comments\n"
-        "3. You're explicitly asked to analyze the therapist's behavior\n\n"
-        
-        "Keep acknowledgments brief and natural.\n\n"
-        
-        "Foundational Principles\n\n"
-        "In all responses, adhere to these expert-AI teaming best practices:\n\n"
-        
-        "Transparency:\n"
-        "Provide a brief, clear rationale for any analytic statement. Cite transcript evidence using line numbers.\n\n"
-        
+        "1. GLOBAL RULES (ALWAYS ACTIVE)\n"
+        "- Never fabricate transcript content, facts, or therapist intentions.\n"
+        "- Do not infer internal states, emotions, or off-transcript behavior.\n"
+        "- Respond concisely, professionally, and only to what the user asked.\n"
+        "- Use a natural, peer-like supervisory tone; avoid rigid sections or templates unless the user requests structure.\n"
+        "- Treat each user message independently unless the user explicitly references earlier turns.\n"
+        "- If the user gives a dismissive acknowledgment (e.g., \"ok\", \"thanks\", \"got it\"), briefly acknowledge and ask whether they want to continue or move on.\n"
+        "- If the user expresses confusion (e.g., \"what?\", \"I don’t understand\", \"unclear\"), provide a simpler, more direct explanation of your prior point.\n"
+        "- Do not offer unsolicited elaboration or additional insights outside analytic tasks.\n"
+        "- If you are unsure whether the user wants analysis of therapist behavior or just general information, ask a brief clarifying question.\n\n"
+
+        "2. ANALYSIS MODE (ONLY WHEN USER REQUESTS SUPERVISORY ANALYSIS)\n"
+        "Enter analysis mode only when the user asks you to analyze therapist behavior, evaluate fidelity, generate observations, or provide supervision-like feedback on the session.\n\n"
+
+        "When in analysis mode, follow these rules:\n\n"
+
+        "Evidence Use:\n"
+        "- Cite transcript lines in the format [Line X] when providing evidence.\n"
+        "- Base all claims on observable behavior only.\n"
+        "- Distinguish clearly in your wording between what is directly observed (evidence) and your interpretation of its relevance to PE fidelity.\n\n"
+
+        "Fidelity Alignment:\n"
+        "- Use PE fidelity criteria (e.g., orientation to imaginal exposure, SUDS monitoring, hotspot identification, present-tense prompting, reinforcing comments, processing after imaginal, session structure, off-task discussion) as the interpretive framework.\n"
+        "- If the transcript does not provide enough information to evaluate a fidelity domain, explicitly state that the evidence is insufficient.\n\n"
+
         "Trust Calibration:\n"
-        "Indicate uncertainty when appropriate. Do not overstate confidence. Use calibrated language (e.g., \"appears,\" \"may suggest,\" \"based on lines X–Y\").\n\n"
-        
-        "Preserve Clinician Autonomy:\n"
-        "Frame feedback as observations or suggestions, not directives. Avoid authoritative or prescriptive tone unless explicitly asked.\n\n"
-        
-        "Support Contestability:\n"
-        "Present reasoning in a way that allows the clinician to agree, disagree, or reinterpret your analysis. Avoid unverifiable claims.\n\n"
-        
-        "Shared Mental Model Alignment:\n"
-        "Use terminology consistent with PE fidelity checklists and standard clinical supervision discourse. Be context-aware and refer to therapist behaviors in ways consistent with common supervisory expectations.\n\n"
-        
-        "Workflow Fit and Brevity:\n"
-        "Provide concise, readable output. Use bullet points where possible. Avoid unnecessary elaboration unless the user requests more detail.\n\n"
-        
-        "Reliability and Validity:\n"
-        "Base all feedback on transcript evidence and the PE fidelity criteria only. Never infer internal states or motivations. Never invent content.\n\n"
-        
-        "Adaptive Communication:\n"
-        "Match the level of detail to the user's request. Default to succinct, high-signal observations unless they explicitly request expanded analysis.\n\n"
-        
-        "Natural, Conversational Tone:\n"
-        "Avoid rigid structural labels and templates. Do not use formats like 'Observation:', 'Feedback:', 'Rationale:', 'Assessment:', 'Suggestion:', 'Potential Benefit:', 'Conclusion:', 'Consideration:', 'Encouragement:' as section headers. Instead, write naturally as a peer supervisor would speak—flowing, direct, and human. Weave evidence and reasoning into your sentences rather than separating them into labeled blocks.\n\n"
-        
-        "Core Behavioral Rules\n\n"
-        "- Anchor every claim to the transcript; cite in the format [Line X].\n"
-        "- If uncertain, state uncertainty succinctly.\n"
-        "- Do not speculate beyond observables.\n"
-        "- Avoid repetition; maintain an academically neutral tone.\n"
-        "- Never fabricate behaviors, statements, or fidelity criteria.\n\n"
-        
-        "Response Format\n\n"
-        "Unless the user specifies otherwise:\n"
-        "- Provide 3–5 bullet points unless asked for a different format.\n"
-        "- Prioritize clarity, brevity, and natural human communication.\n"
-        "- When providing feedback, sound like a clinical supervisor speaking to a trainee—direct, supportive, specific, and grounded in the transcript.\n"
-        "- Integrate evidence naturally into sentences; do not separate into labeled segments.\n\n"
-        
-        "Scope Restrictions\n\n"
+        "- Use calibrated language such as \"appears\", \"may indicate\", or \"based on [Line X–Y]\".\n"
+        "- Mark uncertainty explicitly; do not overstate confidence. Offer to estimate your certainty in a conclusion.\n\n"
+
+        "Autonomy Preservation:\n"
+        "- Frame feedback as observations or suggestions, not directives, unless the user explicitly requests strong prescriptive guidance.\n"
+        "- Do not reinterpret or expand the user’s goals unless they ask you to.\n\n"
+
+        "Contestability:\n"
+        "- Present your reasoning in a way that allows the clinician to agree, disagree, or reinterpret your analysis.\n"
+        "- Avoid unverifiable or global statements about therapist competence.\n\n"
+
+        "Boundaries:\n"
+        "- Do not generalize beyond this specific transcript or session.\n"
+        "- Do not simulate or infer missing dialogue or events not shown in the transcript.\n"
+        "- Do not evaluate client behavior or provide therapeutic interpretations of the client.\n\n"
+
+        "Format in Analysis Mode:\n"
+        "- Unless the user specifies otherwise, provide ideally 3, but no more than 5, bullet points to answer a given query.\n"
+        "- Prioritize clarity and brevity; avoid redundancy.\n"
+        "- Integrate evidence naturally into sentences rather than using rigid labeled sections.\n"
+        "- Focus on clinically meaningful behaviors relevant to fidelity rather than stylistic preferences.\n\n"
+
+        "3. SCOPE RESTRICTIONS\n"
         "- You do not evaluate client behavior.\n"
-        "- You do not offer therapeutic interpretations.\n"
-        "- You do not comment on therapist intentions.\n"
-        "- You assess only what is observable, using fidelity checklists as the interpretive framework."
+        "- You do not infer therapist intentions, emotions, or clinical meanings beyond what is observable.\n"
+        "- You analyze only observable therapist behaviors through the PE fidelity framework when in analysis mode.\n\n"
+
+        "After completing an analytic task, return to the global rules unless the user continues to request supervisory analysis."
     )
+
 
 
 
@@ -692,7 +686,8 @@ def render_feedback_item(item: Dict) -> None:
 
 
 def generate_observations_summary(conversations: Dict, client: any) -> str:
-    """Generate a bulleted summary of key points from all four observation discussions."""
+    """Generate a bulleted summary of key points from all four observation discussions,
+    with calls to action for supervisor recommendations on trainee development."""
     try:
         # Collect all messages from the four observations
         all_messages = []
@@ -703,30 +698,41 @@ def generate_observations_summary(conversations: Dict, client: any) -> str:
         if not all_messages:
             return ""
         
-        # Create a summary request
+        # Create a summary request framed for supervisor assessment of trainee
         summary_prompt = (
-            "Based on the discussion below, create a concise bulleted summary of the most important points, "
-            "conclusions, and insights that emerged from the conversation about the four observations. "
-            "Focus on what the user and assistant arrived at together - the key takeaways and conclusions. "
-            "Format as 4-7 bullet points. Be specific and concrete.\n\n"
-            "Discussion:"
+            "You are synthesizing clinical supervision notes from a supervisor reviewing a trainee therapist's performance. "
+            "Based on the supervision discussion below, create a concise summary that includes:\n\n"
+            "1. ASSESSMENT FINDINGS (3-4 bullet points): Key observations about the trainee's demonstrated skills, "
+            "fidelity to the model, areas of strength, and areas needing development\n"
+            "2. SUPERVISION RECOMMENDATIONS (2-3 bullet points): Specific, actionable recommendations for the supervisor "
+            "to emphasize in their feedback to the trainee. Frame these constructively as developmental priorities.\n\n"
+            "Be specific and concrete. Reference actual discussion points about the trainee's performance. "
+            "The summary should help the supervisor focus their feedback session with the trainee.\n\n"
+            "Supervision Discussion:"
         )
         
         # Format messages for context
-        for msg in all_messages[-20:]:  # Use last 20 messages to keep context manageable
-            role = "User" if msg["role"] == "user" else "TeamMait"
-            summary_prompt += f"\n{role}: {msg['content'][:200]}"  # Truncate long messages
+        for msg in all_messages[-25:]:  # Use last 25 messages to keep context manageable
+            role = "Supervisor" if msg["role"] == "user" else "TeamMait"
+            summary_prompt += f"\n{role}: {msg['content'][:250]}"  # Truncate long messages
         
         # Call OpenAI to generate summary
         response_text = ""
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a concise summarizer. Create a bulleted list of key points."},
+                {
+                    "role": "system", 
+                    "content": (
+                        "You are an expert clinical supervisor synthesizing assessment notes about a trainee therapist's performance. "
+                        "Provide clear findings and actionable supervision recommendations. Frame recommendations as developmental priorities "
+                        "that will guide the supervisor's feedback conversation with the trainee."
+                    )
+                },
                 {"role": "user", "content": summary_prompt}
             ],
             temperature=0.7,
-            max_tokens=300,
+            max_tokens=500,
             stream=False
         )
         
@@ -970,7 +976,6 @@ if "time_warning_2min_shown" not in st.session_state:
 if time_expired and st.session_state.guided_phase == "active":
     st.session_state.guided_phase = "expired"
     elapsed_seconds = elapsed.total_seconds()
-    stop_timer_js()
     
     analytics.session_time_expired(
         username,
@@ -1274,7 +1279,8 @@ elif st.session_state.guided_phase == "active":
 
 
 # Continue processing after rerun if we have a thinking message
-if st.session_state.guided_phase == "active" and st.session_state.all_conversations[current_idx]:
+current_idx = st.session_state.current_question_idx
+if st.session_state.guided_phase == "active" and current_idx < len(st.session_state.question_bank) and st.session_state.all_conversations[current_idx]:
     if st.session_state.all_conversations[current_idx][-1]["content"] == "*Thinking...*":
         # Get the user message (it's the one before thinking)
         user_input = st.session_state.all_conversations[current_idx][-2]["content"] if len(st.session_state.all_conversations[current_idx]) > 1 else ""
@@ -1557,10 +1563,20 @@ elif st.session_state.guided_phase == "expired":
     )
 
 # ==================== REVIEW PHASE ====================
-
+# ==================== REVIEW PHASE ====================
 elif st.session_state.guided_phase == "review":
+    # Store the elapsed time from when we entered review phase to preserve timer accuracy
+    if "review_phase_start_time" not in st.session_state:
+        st.session_state.review_phase_start_time = datetime.now()
+    
+    # Recalculate remaining time using the original session start, not review start
+    review_elapsed = (datetime.now() - st.session_state.review_phase_start_time).total_seconds()
+    # Subtract 2 seconds per rerun to smooth the timer
+    adjusted_elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds() - min(2, review_elapsed)
+    adjusted_remaining = COUNTDOWN_DURATION_SECONDS - adjusted_elapsed
+    
     # Automatically skip to open chat mode if there's time, or finish if time expired
-    if time_expired or remaining.total_seconds() <= 0:
+    if time_expired or adjusted_remaining <= 0:
         # Time expired - go straight to complete phase
         st.error("### Session Time Expired")
         st.markdown("Thank you for completing all observations. The module is now complete.")
@@ -1570,41 +1586,70 @@ elif st.session_state.guided_phase == "review":
             sync_session_to_storage()
             st.rerun()
     else:
-        # Time remaining - go straight to open chat
-        if not st.session_state.open_chat_mode:
-            st.session_state.open_chat_mode = True
-            # Generate summary on first arrival
-            if "observations_summary_generated" not in st.session_state:
-                summary = generate_observations_summary(st.session_state.all_conversations, client)
-                if summary:
-                    st.session_state.observations_summary = summary
-                    st.session_state.observations_summary_generated = True
-            st.rerun()
+        # Display summary of all prior observations and their chat histories
+        st.markdown("## Review: Discussion Summary")
+        st.divider()
+        
+        for obs_idx in range(len(st.session_state.question_bank)):
+            obs_item = st.session_state.question_bank[obs_idx]
+            obs_title = obs_item.get("title", f"Observation {obs_idx + 1}")
+            
+            with st.expander(f"**Observation {obs_idx + 1}**: {obs_title}", expanded=False):
+                # Display conversation history for this observation
+                if st.session_state.all_conversations[obs_idx]:
+                    for msg in st.session_state.all_conversations[obs_idx]:
+                        timestamp = msg.get("timestamp", "")
+                        time_str = ""
+                        if timestamp:
+                            try:
+                                dt = datetime.fromisoformat(timestamp)
+                                time_str = dt.strftime("%H:%M")
+                            except:
+                                pass
+                        
+                        with st.chat_message(msg["role"]):
+                            if time_str:
+                                st.caption(f"_{time_str}_")
+                            st.markdown(msg["content"])
+                else:
+                    st.info("No discussion for this observation.")
+        
+        st.divider()
+        
+        # Generate key points summary on first arrival if not already done
+        if "observations_summary_generated" not in st.session_state:
+            summary = generate_observations_summary(st.session_state.all_conversations, client)
+            if summary:
+                st.session_state.observations_summary = summary
+                st.session_state.observations_summary_generated = True
+                
+                # Add summary as the first message in open chat if chat is empty
+                if not st.session_state.all_conversations["open_chat"]:
+                    st.session_state.all_conversations["open_chat"].append(
+                        {
+                            "role": "assistant",
+                            "content": f"**Key Takeaways from Your Discussion:**\n\n{summary}",
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    )
+                    sync_session_to_storage()
         
         # Open chat mode - always shown in review phase with time remaining
         current_idx = "open_chat"
-        is_open_chat = True
         
-        st.markdown("### Continuing the Conversation")
+        st.markdown("### Continue the Conversation")
         st.divider()
         
-        # Display summary and key takeaways
-        if st.session_state.get("observations_summary"):
-            st.markdown("**Key Takeaways from Your Discussion:**")
-            st.markdown(st.session_state.observations_summary)
-            st.divider()
-        
         # Prompt for continued discussion
-        remaining_time_sec = max(0, int(remaining.total_seconds()))
+        remaining_time_sec = max(0, int(adjusted_remaining))
         remaining_min = remaining_time_sec // 60
         remaining_sec = remaining_time_sec % 60
         
         st.info(
             f"You have **{remaining_min}:{remaining_sec:02d}** remaining. "
-            "Feel free to discuss any other aspects of the session, ask questions, or share additional thoughts."
+            "Feel free to discuss any other aspects of the session, ask questions, or share additional thoughts. "
+            "When you're done, check the **'Check this when done'** box to save your results."
         )
-        
-        st.divider()
         
         # Display conversation history WITH TIMESTAMPS
         for msg in st.session_state.all_conversations[current_idx]:
@@ -1627,7 +1672,7 @@ elif st.session_state.guided_phase == "review":
         
         if user_input:
             # Check if time expired while user was typing
-            if time_expired:
+            if adjusted_remaining <= 0:
                 st.error("Session time has expired. Your response could not be saved.")
                 st.session_state.guided_phase = "expired"
                 sync_session_to_storage()
@@ -1788,7 +1833,7 @@ elif st.session_state.guided_phase == "review":
         
         # Option to finish when time is running low
         st.divider()
-        if remaining.total_seconds() < 120:  # Show finish button when less than 2 min left
+        if adjusted_remaining < 120:  # Show finish button when less than 2 min left
             if st.button(
                 "Finish Module",
                 type="primary",
@@ -1797,6 +1842,11 @@ elif st.session_state.guided_phase == "review":
                 st.session_state.guided_phase = "complete"
                 sync_session_to_storage()
                 st.rerun()
+        
+        # Use Streamlit's sleep to auto-rerun and keep timer updating (but don't rerun in review immediately)
+        import time as time_module
+        time_module.sleep(1)
+        st.rerun()
 
 # ==================== COMPLETE PHASE ====================
 
