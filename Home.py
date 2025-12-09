@@ -73,19 +73,22 @@ You are participating as an expert clinician evaluator in this research study. T
 
 ### Instructions
 
-#### Phase 1: Open Chat
+#### Module 1
 - **Interactive Review**: Ask TeamMait any questions about the therapy transcript, therapist behavior, or therapy processes
 - **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts
 - **Flexible Approach**: Use TeamMait however feels natural for your evaluation process
 - **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
 
+#### Qualtrics Survey
 A brief survey about your experience will follow this phase.
             
-#### Phase 2: Guided Interaction  
+#### Module 2  
 - **Structured Observations**: TeamMait will share prepared observations about notable aspects of the transcript
 - **Natural Flow**: Progress through observations at your own pace, with options to explore topics further depth or breadth, or to discuss related topics.
 - **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
-
+            
+#### Qualitative Interview
+When both modules and the survey have been completed, we will move on to a brief qualitative interview lasting no more than 10 minutes.
 ---
 
 ---

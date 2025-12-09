@@ -29,7 +29,7 @@ inclusion_items = [
     ("Instructions & Consent (Home)", "include_instructions_and_consent"),
     ("Open Chat", "include_open_chat"),
     ("Survey", "include_survey"),
-    ("Guided Interaction", "include_guided_interaction")
+    ("Module 2", "include_guided_interaction")
 ]
 
 # Initialize completion status if it doesn't exist
@@ -39,9 +39,9 @@ if "completion_status" not in st.session_state:
 # Map the items to their completion status keys
 completion_mapping = {
     "Instructions & Consent (Home)": "home",
-    "Open Chat": "open_chat", 
-    "Survey": "survey",
-    "Guided Interaction": "guided_interaction"
+    "Module 1": "open_chat", 
+    "Survey 1": "survey",
+    "Module 2": "guided_interaction"
 }
 
 # Show completion status using the persistent tracker
@@ -116,7 +116,7 @@ def build_export():
             "completion_timestamp": None  # Could be enhanced to track when survey was marked complete
         }
 
-    # Enhanced Guided Interaction export with detailed classifications and state tracking
+    # Enhanced Module 2 export with detailed classifications and state tracking
     if st.session_state.get("include_guided_interaction", False):
         guided_messages = st.session_state.get("guided_messages", [])
         flowchart_state = st.session_state.get("flowchart_state", {})
