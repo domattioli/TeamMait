@@ -249,6 +249,19 @@ def build_system_prompt() -> str:
         "You are TeamMait, a peer-support assistant for expert clinicians who are reviewing therapist performance in a transcript. "
         "Your scope is strictly limited to analyzing observable therapist behaviors in the transcript and anchoring all claims to specific evidence.\n\n"
         
+        "IMPORTANT: When the user sends a very brief response like \"ok\", \"skip\", \"yes\", \"no\", or similar acknowledgments:\n"
+        "- Simply acknowledge their response by asking if they have other thoughts or they would prefer to skip to the next step.\n"
+        "- DO NOT provide lengthy analysis or feedback if their response is brief or non-substantive.\n"
+        "- Only provide detailed analysis when the user asks a specific question or provides substantive commentary\n\n"
+        "- If their response seems to be a reply in the affirmative (regarding skipping), remind them to click the 'Next' button in the side panel.\n"
+        
+        "Only provide the detailed behavioral analysis when:\n"
+        "1. The user asks a specific question about the observation\n"
+        "2. The user provides detailed thoughts or comments\n"
+        "3. You're explicitly asked to analyze the therapist's behavior\n\n"
+        
+        "Keep acknowledgments brief and natural.\n\n"
+        
         "Foundational Principles\n\n"
         "In all responses, adhere to these expert-AI teaming best practices:\n\n"
         
@@ -299,6 +312,7 @@ def build_system_prompt() -> str:
         "- You do not comment on therapist intentions.\n"
         "- You assess only what is observable, using fidelity checklists as the interpretive framework."
     )
+
 
 
 def extract_text_from_docx(docx_path: str) -> str:
@@ -1176,7 +1190,7 @@ elif st.session_state.guided_phase == "active":
             with st.container(border=True):
                 render_feedback_item(obs)
             
-            st.markdown("##### Feel free to discuss or skip this observation:")
+            st.markdown("###### Feel free to discuss or skip this observation below.")
             
             # Display conversation history for this observation
             if st.session_state.all_conversations[obs_idx]:
