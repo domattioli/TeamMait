@@ -887,15 +887,30 @@ with st.sidebar:
                 st.rerun()
 
     # Show reference conversation
-    with st.expander("Reference Conversation", expanded=True):
+    with st.expander("Show Referenced Full Conversation", expanded=True):
         ref_conversation = load_reference_conversation()
         if ref_conversation:
             for i, turn in enumerate(ref_conversation, 1):
+                # Display line number
+                st.markdown(f"[Line {i}]", unsafe_allow_html=True)
+                
+                # Display turn with appropriate formatting
+                is_therapist = turn.strip().startswith("Therapist:")
                 is_client = turn.strip().startswith("Client:")
-                if is_client:
-                    st.caption(f"**[Line {i}]** {turn}")
+                
+                if is_therapist:
+                    # Extract speaker and content
+                    content = turn.replace("Therapist:", "", 1).strip()
+                    st.markdown(f"*Therapist: {content}*")
+                elif is_client:
+                    # Extract speaker and content  
+                    content = turn.replace("Client:", "", 1).strip()
+                    st.markdown(f"{content}")
                 else:
-                    st.caption(f"*[Line {i}]* {turn}")
+                    st.markdown(turn)
+                
+                # Add spacing between turns
+                st.markdown("")
         else:
             st.warning("Reference conversation not loaded")
 
