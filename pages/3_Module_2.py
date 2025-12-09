@@ -259,7 +259,8 @@ def build_system_prompt() -> str:
         "- If the user gives a dismissive acknowledgment (e.g., \"ok\", \"thanks\", \"got it\"), briefly acknowledge and ask whether they want to continue or move on.\n"
         "- If the user expresses confusion (e.g., \"what?\", \"I don’t understand\", \"unclear\"), provide a simpler, more direct explanation of your prior point.\n"
         "- Do not offer unsolicited elaboration or additional insights outside analytic tasks.\n"
-        "- If you are unsure whether the user wants analysis of therapist behavior or just general information, ask a brief clarifying question.\n\n"
+        "- Do NOT ask if the user wants you to analyze or offer to analyze. Simply respond to their question or request directly based on context. Only ask for clarification if the user's intent is genuinely ambiguous (e.g., unclear phrasing, conflicting requests).\n"
+        "- Never use or reference the observation titles from the system (e.g., 'Vague Noticing Prompt', 'Evidence-Only Reflection', etc.). If the user references 'that observation' or asks about an observation, create a new summative title based on what the observation is actually about (e.g., 'that observation about SUDS monitoring' instead of 'the Evidence-Only Reflection').\n"
 
         "2. ANALYSIS MODE (ONLY WHEN USER REQUESTS SUPERVISORY ANALYSIS)\n"
         "Enter analysis mode only when the user asks you to analyze therapist behavior, evaluate fidelity, generate observations, or provide supervision-like feedback on the session.\n\n"
@@ -294,7 +295,10 @@ def build_system_prompt() -> str:
 
         "Format in Analysis Mode:\n"
         "- Unless the user specifies otherwise, provide ideally 3, but no more than 5, bullet points to answer a given query.\n"
+        "- One sentence per bullet; limit each bullet to about 10 words or 75 characters at most (unless the user explicitly requests longer responses).\n"
+        "- Use sub-bullets if you can't adequetely convey a point in fewer than 10 words or 75 characters. Limit sub-bullets to one per parent-bullet.\n"
         "- Prioritize clarity and brevity; avoid redundancy.\n"
+        "- On a scale of 1-5 brevity, with 5 being the most concise, consider your current instructions to be defined as a 4.\n"
         "- Integrate evidence naturally into sentences rather than using rigid labeled sections.\n"
         "- Focus on clinically meaningful behaviors relevant to fidelity rather than stylistic preferences.\n\n"
 
@@ -754,10 +758,14 @@ def generate_observations_summary(conversations: Dict, client: any) -> str:
         summary_prompt = (
             "You are synthesizing clinical supervision notes from a supervisor reviewing a trainee therapist's performance. "
             "Based on the supervision discussion below, create a concise summary that includes:\n\n"
-            "1. ASSESSMENT FINDINGS (3-4 bullet points): Key observations about the trainee's demonstrated skills, "
-            "fidelity to the model, areas of strength, and areas needing development\n"
-            "2. SUPERVISION RECOMMENDATIONS (2-3 bullet points): Specific, actionable recommendations for the supervisor "
-            "to emphasize in their feedback to the trainee. Frame these constructively as developmental priorities.\n\n"
+            "1. ASSESSMENT FINDINGS (3-4 bullet points): Summative statements about what the supervisor focused on regarding the trainee's "
+            "demonstrated skills, fidelity to the model, areas of strength, and areas needing development. For EACH finding, include a brief "
+            "1-2 sentence statement about what the supervision discussion revealed (e.g., 'The supervisor examined the trainee's use of... and "
+            "found that...' or 'During discussion, the supervisor noted a focus on...'). IMPORTANT: Keep each bullet point to no more than 75 characters.\n"
+            "2. SUPERVISION RECOMMENDATIONS (2-3 bullet points): First, state matter-of-factly what recommendations were actually discussed "
+            "in the supervision session. Then, suggest other related developmental priorities. Frame these constructively as areas to work on. "
+            "For EACH recommendation, add a brief 1-2 sentence statement of the practical reasoning or clinical importance (e.g., 'This is important "
+            "because...' or 'The reasoning here is that...'). IMPORTANT: Keep each bullet point to no more than 75 characters.\n\n"
             "Be specific and concrete. Reference actual discussion points about the trainee's performance. "
             "The summary should help the supervisor focus their feedback session with the trainee.\n\n"
             "Supervision Discussion:"
@@ -1108,8 +1116,8 @@ with st.sidebar:
             sync_session_to_storage()
             st.rerun()
     
-    # Next button (only in active/review phases)
-    if st.session_state.guided_phase in ("active", "review"):
+    # Next button (only in active phase) / End and Save button (only in review phase)
+    if st.session_state.guided_phase == "active":
         if st.button("⏭️ Next", use_container_width=True, key="next_button", type="primary"):
             current_idx = st.session_state.current_question_idx
             next_idx = current_idx + 1
@@ -1123,6 +1131,12 @@ with st.sidebar:
                 st.error(f"Cannot proceed: {error}")
             else:
                 st.rerun()
+    
+    elif st.session_state.guided_phase == "review":
+        if st.button("✓ End Session & Save Data", use_container_width=True, key="end_session_button", type="primary"):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
 
     # Show reference conversation
     with st.expander("Show Referenced Full Conversation", expanded=True):
@@ -1188,7 +1202,9 @@ In this Module, I'll share **4 structured observations** about the therapy sessi
    - Click the **⏭️ Next** button to move to the next observation.
    - Feel free to skip observations if it does not interest you.
 3. **Review phase**
-   - If there is time remaining once you engage with all 4 observations, you can open-chat with TeamMait about the session.
+   - Once you've reviewed all 4 observations, you'll enter the review phase.
+   - You can continue discussing with TeamMait about any aspect of the session.
+   - Click **✓ End Session & Save Data** when you're ready to conclude.
 4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
 
 ### Note:
@@ -1618,17 +1634,15 @@ elif st.session_state.guided_phase == "expired":
     )
 
 # ==================== REVIEW PHASE ====================
-# ==================== REVIEW PHASE ====================
 elif st.session_state.guided_phase == "review":
-    # Store the elapsed time from when we entered review phase to preserve timer accuracy
-    if "review_phase_start_time" not in st.session_state:
-        st.session_state.review_phase_start_time = datetime.now()
+    # Clear the open_chat conversation on first entry to review phase
+    if "review_phase_entered" not in st.session_state:
+        st.session_state.all_conversations["open_chat"] = []
+        st.session_state.review_phase_entered = True
+        sync_session_to_storage()
     
-    # Recalculate remaining time using the original session start, not review start
-    review_elapsed = (datetime.now() - st.session_state.review_phase_start_time).total_seconds()
-    # Subtract 2 seconds per rerun to smooth the timer
-    adjusted_elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds() - min(2, review_elapsed)
-    adjusted_remaining = COUNTDOWN_DURATION_SECONDS - adjusted_elapsed
+    # Recalculate remaining time using the original session start
+    adjusted_remaining = COUNTDOWN_DURATION_SECONDS - (datetime.now() - st.session_state.guided_session_start).total_seconds()
     
     # Automatically skip to open chat mode if there's time, or finish if time expired
     if time_expired or adjusted_remaining <= 0:
@@ -1650,6 +1664,13 @@ elif st.session_state.guided_phase == "review":
             obs_title = obs_item.get("title", f"Observation {obs_idx + 1}")
             
             with st.expander(f"**Observation {obs_idx + 1}**: {obs_title}", expanded=False):
+                # First, display the original observation
+                st.markdown("**Original Observation:**")
+                render_feedback_item(obs_item)
+                
+                st.divider()
+                
+                st.markdown("**Discussion History:**")
                 # Display conversation history for this observation
                 if st.session_state.all_conversations[obs_idx]:
                     for msg in st.session_state.all_conversations[obs_idx]:
@@ -1677,22 +1698,18 @@ elif st.session_state.guided_phase == "review":
             if summary:
                 st.session_state.observations_summary = summary
                 st.session_state.observations_summary_generated = True
-                
-                # Add summary as the first message in open chat if chat is empty
-                if not st.session_state.all_conversations["open_chat"]:
-                    st.session_state.all_conversations["open_chat"].append(
-                        {
-                            "role": "assistant",
-                            "content": f"**Key Takeaways from Your Discussion:**\n\n{summary}",
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    )
-                    sync_session_to_storage()
+                sync_session_to_storage()
         
         # Open chat mode - always shown in review phase with time remaining
         current_idx = "open_chat"
         
         st.markdown("### Continue the Conversation")
+        
+        # Display the summary as markdown (not as a chat message)
+        if st.session_state.observations_summary_generated and st.session_state.observations_summary:
+            st.markdown("**Key Takeaways from Your Discussion:**")
+            st.markdown(st.session_state.observations_summary)
+        
         st.divider()
         
         # Prompt for continued discussion
@@ -1892,18 +1909,6 @@ elif st.session_state.guided_phase == "review":
                                 f"Unexpected error in open chat: {e}",
                                 exc_info=True,
                             )
-        
-        # Option to finish when time is running low
-        st.divider()
-        if adjusted_remaining < 120:  # Show finish button when less than 2 min left
-            if st.button(
-                "Finish Module",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state.guided_phase = "complete"
-                sync_session_to_storage()
-                st.rerun()
         
         # Use Streamlit's sleep to auto-rerun and keep timer updating (but don't rerun in review immediately)
         import time as time_module
