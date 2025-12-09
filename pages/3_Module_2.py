@@ -175,6 +175,9 @@ def build_system_prompt() -> str:
         "Adaptive Communication:\n"
         "Match the level of detail to the user's request. Default to succinct, high-signal observations unless they explicitly request expanded analysis.\n\n"
         
+        "Natural, Conversational Tone:\n"
+        "Avoid rigid structural labels and templates. Do not use formats like 'Observation:', 'Feedback:', 'Rationale:', 'Assessment:', 'Suggestion:', 'Potential Benefit:', 'Conclusion:', 'Consideration:', 'Encouragement:' as section headers. Instead, write naturally as a peer supervisor would speak—flowing, direct, and human. Weave evidence and reasoning into your sentences rather than separating them into labeled blocks.\n\n"
+        
         "Core Behavioral Rules\n\n"
         "- Anchor every claim to the transcript; cite in the format [Line X].\n"
         "- If uncertain, state uncertainty succinctly.\n"
@@ -184,9 +187,10 @@ def build_system_prompt() -> str:
         
         "Response Format\n\n"
         "Unless the user specifies otherwise:\n"
-        "- Provide 3–5 bullet points.\n"
-        "- Prioritize clarity, brevity, and structured reasoning.\n"
-        "- When making analytic statements, use a Situation–Rationale or Situation–Recommendation–Rationale style where appropriate, keeping reasoning concise.\n\n"
+        "- Provide 3–5 bullet points OR a flowing paragraph, whichever fits the context better.\n"
+        "- Prioritize clarity, brevity, and natural human communication.\n"
+        "- When providing feedback, sound like a clinical supervisor speaking to a trainee—direct, supportive, specific, and grounded in the transcript.\n"
+        "- Integrate evidence naturally into sentences; do not separate into labeled segments.\n\n"
         
         "Scope Restrictions\n\n"
         "- You do not evaluate client behavior.\n"
@@ -1038,19 +1042,19 @@ if st.session_state.guided_phase == "intro":
     ### How to use:
     1. **Read each observation**
     2. **Discuss, skip, and/or advance** - You can:
-       - Type a question or comment to discuss the observation further
-       - Click the **⏭️ Next** button to move to the next observation
+       - Type a question or comment to discuss the observation further.
+       - Click the **⏭️ Next** button to move to the next observation.
        - Feel free to skip observations if it does not interest you.
     3. **Review phase**
-        - After all 4 observations, you can revisit any to discuss further
+        - After all 4 observations, you can revisit any to discuss further.
         - You can also engage in an open-chat with TeamMait about the session.
             - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
-    4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session
+    4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
     
 
     ### Important rules:
     - You can only move **forward** through observations.
-    - In the review phase, you can go back and revisit any observation
+    - In the review phase, you can go back and revisit any observation.
 
     **Ready to begin?** Click the **▶️ Start** button in the sidebar.
     """,
@@ -1690,7 +1694,7 @@ elif st.session_state.guided_phase == "review":
         
         # Back button to return to Review or Open Chat
         if is_open_chat:
-            back_button_label = "← Back to Observations"
+            back_button_label = "← Back to Review"
         else:
             back_button_label = "← Review"
         
