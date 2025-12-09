@@ -1,6 +1,5 @@
 """
-Input Parser: User input parsing and command recognition.
-Handles typos, fuzzy matching, and command interpretation.
+Input Parser: Utility module for message buffer, help text, and intent detection.
 """
 
 import logging
@@ -10,37 +9,16 @@ logger = logging.getLogger(__name__)
 
 
 class InputParser:
-    """Parses user input and identifies commands vs messages."""
+    """Provides help text and intent detection for users."""
 
-    # Commands that advance to next observation
-    NEXT_COMMANDS = {
-        "next",
-        "next question",
-        "skip",
-        "proceed",
-        "continue",
-        "advance",
-        "forward",
-    }
-
-    # Commands that show help
-    HELP_COMMANDS = {
-        "help",
-        "commands",
-        "info",
-    }
-
-    # Commands that exit
-    EXIT_COMMANDS = {
-        "exit",
-        "quit",
-        "leave",
-        "back",
-        "q",
+    # Keywords that indicate intent to move to next observation
+    NAVIGATION_INTENT_KEYWORDS = {
+        "ready", "prepared", "next", "move", "proceed", "advance",
+        "forward", "go", "continue", "let's", "lets", "done", "finished",
+        "complete", "done with"
     }
 
     # High-confidence phrases that indicate intent to move to next observation
-    # Used for first-pass detection before keyword-based fallback
     NAVIGATION_INTENT_PHRASES = {
         "ready to move on",
         "ready to proceed",
@@ -61,151 +39,6 @@ class InputParser:
         "next one",
     }
 
-    # Keywords that indicate intent to move to next observation
-    # These are used for semantic/keyword-based detection as fallback
-    NAVIGATION_INTENT_KEYWORDS = {
-        "ready", "prepared", "next", "move", "proceed", "advance",
-        "forward", "go", "continue", "let's", "lets", "done", "finished",
-        "complete", "done with"
-    }
-
-
-    # Common typos of "next"
-    NEXT_TYPOS = {
-        "nxt",
-        "ne xt",
-        "nextt",
-        "net",
-        "nect",
-        "nexy",
-        "nect",
-        "nx",
-        "nex",
-    }
-
-    @staticmethod
-    def parse(
-        text: str,
-        phase: str = "active",
-        suggestion_threshold: int = 1,
-    ) -> tuple[str, str, Optional[str]]:
-        """
-        Parse user input and identify command vs message.
-
-        Args:
-            text: Raw user input
-            phase: Current phase (affects available commands)
-            suggestion_threshold: Edit distance for typo suggestions
-
-        Returns:
-            (input_type, content, suggestion)
-            input_type: "command", "message", or "probable_typo"
-            content: The parsed command or original message
-            suggestion: Suggested correction if probable_typo
-        """
-        if not text or not text.strip():
-            return "empty", "", None
-
-        cleaned = text.strip()
-        cleaned_lower = cleaned.lower()
-
-        # ==================== EXACT COMMAND MATCH ====================
-
-        # Check for "next" command (most common)
-        if cleaned_lower in InputParser.NEXT_COMMANDS:
-            return "command", "next", None
-
-        # Check for help commands
-        if cleaned_lower in InputParser.HELP_COMMANDS:
-            return "command", "help", None
-
-        # Check for exit commands (only in active/review)
-        if phase in ("active", "review") and cleaned_lower in InputParser.EXIT_COMMANDS:
-            return "command", "exit", None
-
-        # ==================== NAVIGATION INTENT DETECTION ====================
-
-        # First pass: Check high-confidence phrase list for exact/substring matches
-        for phrase in InputParser.NAVIGATION_INTENT_PHRASES:
-            if phrase in cleaned_lower:
-                return "navigation_intent", "next", None
-
-        # Second pass: Use keyword-based semantic detection for robustness
-        # Catches variations not in the phrase list
-        if InputParser.detect_navigation_intent(cleaned_lower):
-            return "navigation_intent", "next", None
-
-        # ==================== FUZZY MATCH FOR "NEXT" ====================
-
-        # Check if starts with "next" (handles "next " with trailing space)
-        if cleaned_lower.startswith("next") and len(cleaned_lower) <= 10:
-            return "command", "next", None
-
-        # Check for common typos of "next"
-        if cleaned_lower in InputParser.NEXT_TYPOS:
-            return "probable_typo", cleaned_lower, "next"
-
-        # ==================== EDIT DISTANCE CHECK ====================
-
-        # Check for typos with edit distance <= 1
-        suggestion = InputParser.find_typo_suggestion(
-            cleaned_lower, threshold=suggestion_threshold
-        )
-        if suggestion:
-            return "probable_typo", cleaned_lower, suggestion
-
-        # ==================== DEFAULT TO MESSAGE ====================
-
-        return "message", cleaned, None
-
-    @staticmethod
-    def find_typo_suggestion(text: str, threshold: int = 1) -> Optional[str]:
-        """
-        Find probable command suggestion using edit distance.
-
-        Returns: Suggested command or None
-        """
-        if not text or len(text) < 2:
-            return None
-
-        all_commands = (
-            InputParser.NEXT_COMMANDS
-            | InputParser.HELP_COMMANDS
-            | InputParser.EXIT_COMMANDS
-        )
-
-        # Check each known command
-        for cmd in all_commands:
-            if InputParser.edit_distance(text, cmd) <= threshold:
-                return cmd
-
-        return None
-
-    @staticmethod
-    def edit_distance(s1: str, s2: str) -> int:
-        """
-        Calculate Levenshtein edit distance between two strings.
-        Used for typo detection.
-        """
-        if len(s1) < len(s2):
-            return InputParser.edit_distance(s2, s1)
-
-        if len(s2) == 0:
-            return len(s1)
-
-        previous_row = range(len(s2) + 1)
-        for i, c1 in enumerate(s1):
-            current_row = [i + 1]
-            for j, c2 in enumerate(s2):
-                # j+1 instead of j since previous_row and current_row are one character longer
-                insertions = previous_row[j + 1] + 1
-                deletions = current_row[j] + 1
-                substitutions = previous_row[j] + (c1 != c2)
-                current_row.append(min(insertions, deletions, substitutions))
-            previous_row = current_row
-
-        return previous_row[-1]
-
     @staticmethod
     def detect_navigation_intent(text: str) -> bool:
         """
@@ -217,7 +50,7 @@ class InputParser:
         - "lets move to the next"
         - "ready to proceed"
         - "done, moving on"
-        - "ok next question"
+        - "ok next"
         - "advance to the next observation"
         
         Args:
@@ -226,8 +59,16 @@ class InputParser:
         Returns:
             True if navigation intent is detected, False otherwise
         """
+        cleaned_lower = text.strip().lower()
+        
+        # First pass: Check high-confidence phrase list
+        for phrase in InputParser.NAVIGATION_INTENT_PHRASES:
+            if phrase in cleaned_lower:
+                return True
+        
+        # Second pass: keyword-based semantic detection
         # Split text into words for analysis
-        words = set(text.split())
+        words = set(cleaned_lower.split())
         
         # Count how many navigation keywords are present
         keyword_matches = words & InputParser.NAVIGATION_INTENT_KEYWORDS
@@ -238,11 +79,11 @@ class InputParser:
             return False
         
         # Additional check: avoid triggering on "help" related queries
-        if "help" in text or "how" in text or "what" in text or "can" in text and "do" in text:
+        if "help" in cleaned_lower or "how" in cleaned_lower or "can" in cleaned_lower and "do" in cleaned_lower:
             return False
         
         # Avoid triggering if user is clearly asking a question about observation
-        if "?" in text or "tell me" in text or "explain" in text or "what" in text:
+        if "?" in cleaned_lower or "tell me" in cleaned_lower or "explain" in cleaned_lower:
             return False
         
         return True
@@ -251,32 +92,32 @@ class InputParser:
     def get_help_message() -> str:
         """Get help text for user."""
         return """
-**Commands:**
-- **next** → Move to the next observation
-- **help** or **?** → Show this help message
+**Navigation:**
+- **⏭️ Next button** → Move to the next observation
+- **ℹ️ Help button** → Show this help message
 
-**Navigation Rules:**
-- You can only move **forward** through observations (required for the study)
-- You can revisit previous observations during the review phase
-- You have **20 minutes total** for the entire session (applies across all observations)
-    - Manage your time strategically -- in the essence of time we need to limit this module to 20 minutes total.
-
-**Tips:**
+**How to use:**
 - Type a question or response to discuss the current observation
 - Your responses can be as detailed or brief as you like
 - The AI will provide feedback based on the therapy session transcript
+- Click **Next** when you're ready to move forward
+
+**Important rules:**
+- You can only move **forward** through observations (required for the study)
+- You can revisit previous observations during the review phase
+- You have **20 minutes total** for the entire session across all observations
+- Manage your time strategically
+
+**All your responses are automatically saved.**
 """
 
     @staticmethod
-    def get_typo_warning(typo: str, suggestion: str) -> str:
-        """Get user-friendly typo warning."""
-        return f"""
-Did you mean **'{suggestion}'**? 
+    def get_navigation_redirect_message() -> str:
+        """Get message to redirect user to Next button when they express navigation intent."""
+        return """
+Looking to move forward? Click the **⏭️ Next** button in the sidebar to proceed to the next observation!
 
-You typed: `{typo}`
-
-If you want to move to the next observation, type **'next'** exactly.
-Otherwise, I'll treat your input as a message to discuss. What would you like to do?
+Or, if you have more thoughts on this observation, feel free to share them below.
 """
 
 
