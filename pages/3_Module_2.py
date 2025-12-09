@@ -643,6 +643,58 @@ def load_question_bank() -> Optional[List[Dict]]:
     return ordered_items
 
 
+def format_observation_context(item: Dict) -> str:
+    """Format a complete observation with all details for bot context.
+    
+    Args:
+        item: Dictionary containing feedback item with all observation details
+    
+    Returns:
+        Formatted string with all observation details for system prompt context
+    """
+    parts = []
+    
+    # Title
+    title = item.get("title", "").strip()
+    if title:
+        parts.append(f"**Observation Title:** {title}")
+    
+    # Summary
+    summary = item.get("summary", "").strip()
+    if summary:
+        parts.append(f"**Summary:** {summary}")
+    
+    # Observation
+    observation = item.get("observation", "").strip()
+    if observation:
+        parts.append(f"**Observation:** {observation}")
+    
+    # Assessment/Justification
+    justification = item.get("justification", "").strip()
+    if justification:
+        parts.append(f"**Assessment:** {justification}")
+    
+    # Evidence
+    evidence = item.get("evidence", [])
+    if evidence and isinstance(evidence, list) and any(e.strip() for e in evidence):
+        parts.append("**Evidence:**")
+        for ev in evidence:
+            if isinstance(ev, str) and ev.strip():
+                parts.append(f"  - {ev}")
+    
+    # Evaluation
+    evaluation = item.get("evaluation", "").strip()
+    if evaluation:
+        parts.append(f"**Evaluation:** {evaluation}")
+    
+    # Suggestion
+    suggestion = item.get("suggestion", "").strip()
+    if suggestion:
+        parts.append(f"**Suggestion:** {suggestion}")
+    
+    return "\n".join(parts)
+
+
 def render_feedback_item(item: Dict) -> None:
     """Render a feedback item with structured formatting.
     
@@ -1288,10 +1340,10 @@ if st.session_state.guided_phase == "active" and current_idx < len(st.session_st
         # Generate AI response to replace the thinking message
         current_q_data = st.session_state.question_bank[current_idx]
         context = retrieve_context(user_input)
-        observation = current_q_data.get('summary', '')
+        observation_context = format_observation_context(current_q_data)
         system_prompt = (
             build_system_prompt()
-            + f"\n\nFocus area:\n{observation}\n\n"
+            + f"\n\nCurrent Observation Being Discussed:\n{observation_context}\n\n"
             f"Context from transcript:\n{context}"
         )
 
@@ -1482,9 +1534,12 @@ elif st.session_state.guided_phase == "expired":
             placeholder.markdown("*Synthesizing your insights...*")
             
             try:
+                # Include the observation context for synthesis
+                current_q_data = st.session_state.question_bank[current_idx]
+                observation_context = format_observation_context(current_q_data)
                 system_prompt = (
                     build_system_prompt()
-                    + "\n\n"
+                    + f"\n\nCurrent Observation:\n{observation_context}\n\n"
                     "Provide a brief synthesis of the key insights and observations "
                     "from this discussion. Do NOT summarize what was said. Instead, "
                     "focus on: What was learned? What patterns emerged? What stands out? "
@@ -1713,9 +1768,16 @@ elif st.session_state.guided_phase == "review":
                     
                     # Generate AI response
                     context = retrieve_context(user_input)
+                    # Include all observation context in review phase
+                    observation_contexts = []
+                    for i, q in enumerate(st.session_state.question_bank):
+                        obs_formatted = format_observation_context(q)
+                        observation_contexts.append(f"Observation {i+1}: {obs_formatted}")
+                    all_observations = "\n\n".join(observation_contexts)
                     system_prompt = (
                         build_system_prompt()
-                        + f"\n\nContext from transcript:\n{context}"
+                        + f"\n\nAll Observations from This Supervision Session:\n{all_observations}\n\n"
+                        f"Context from transcript:\n{context}"
                     )
                     
                     with st.chat_message("assistant"):
