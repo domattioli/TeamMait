@@ -507,6 +507,11 @@ def render_feedback_item(item: Dict) -> None:
         st.markdown("**Observation:**")
         st.markdown(observation)
     
+    # Justification (optional, shown as Rationale) - BEFORE Evidence
+    justification = item.get("justification", "").strip()
+    if justification:
+        st.markdown(f"**Rationale:** {justification}")
+    
     # Evidence (optional, as bullet points)
     evidence = item.get("evidence", [])
     if evidence and isinstance(evidence, list) and any(e.strip() for e in evidence):
@@ -524,11 +529,6 @@ def render_feedback_item(item: Dict) -> None:
     suggestion = item.get("suggestion", "").strip()
     if suggestion:
         st.markdown(f"**Suggestion:** {suggestion}")
-    
-    # Justification (optional, shown as Rationale)
-    justification = item.get("justification", "").strip()
-    if justification:
-        st.markdown(f"**Rationale:** {justification}")
 
 
 # ==================== STREAMLIT APP ====================
@@ -1360,7 +1360,7 @@ elif st.session_state.guided_phase == "review":
             st.markdown("### Open Chat - Free Discussion")
             st.divider()
             st.info(
-                "Start a free-form conversation about the session, observations, or anything on your mind. "
+                "Start a free-form conversation about the session, observations, or anything else related to this transcript. "
                 "Use the **← Back to Observations** button to return to the observation list."
             )
         else:
