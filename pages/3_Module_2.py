@@ -903,11 +903,11 @@ with st.sidebar:
                 if is_therapist:
                     # Extract speaker and content
                     content = turn.replace("Therapist:", "", 1).strip()
-                    st.markdown(f"*Therapist: {content}*")
+                    st.markdown(f"<div style='text-align: right;'>***Therapist: {content}***</div>", unsafe_allow_html=True)
                 elif is_client:
                     # Extract speaker and content  
                     content = turn.replace("Client:", "", 1).strip()
-                    st.markdown(f"{content}")
+                    st.markdown(f"**Client:** {content}")
                 else:
                     st.markdown(turn)
                 
@@ -992,7 +992,7 @@ elif st.session_state.guided_phase == "active":
 
         st.divider()
         st.info(
-            "type a response to discuss this item, "
+            "Type a response to discuss this item, "
             "or use the **⏭️ Next** button to move to the next one." \
         )
         st.divider()
