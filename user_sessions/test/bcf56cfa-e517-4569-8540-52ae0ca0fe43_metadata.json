@@ -1,0 +1,17 @@
+{
+  "session_id": "bcf56cfa-e517-4569-8540-52ae0ca0fe43",
+  "username": "test",
+  "created_at": "2025-12-09T08:14:48.187827",
+  "last_activity": "2025-12-09T08:14:48.188853",
+  "phase": "intro",
+  "current_question_idx": 0,
+  "total_messages": 0,
+  "status": "completed",
+  "observations_visited": [],
+  "completed_at": "2025-12-09T08:14:48.200475",
+  "final_state": {
+    "observations_reviewed": 3,
+    "total_messages": 2,
+    "elapsed_seconds": 0
+  }
+}

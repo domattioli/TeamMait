@@ -46,6 +46,7 @@ class InputParser:
         Uses keyword-based semantic detection rather than hardcoded phrases.
         
         Examples that would be detected:
+        - "next" (single word)
         - "im ready for the next one"
         - "lets move to the next"
         - "ready to proceed"
@@ -60,6 +61,10 @@ class InputParser:
             True if navigation intent is detected, False otherwise
         """
         cleaned_lower = text.strip().lower()
+        
+        # Special case: single word "next" or "skip"
+        if cleaned_lower in {"next", "skip"}:
+            return True
         
         # First pass: Check high-confidence phrase list
         for phrase in InputParser.NAVIGATION_INTENT_PHRASES:
