@@ -496,13 +496,10 @@ def render_feedback_item(item: Dict) -> None:
         item: Dictionary containing feedback item with keys: title, summary, observation, 
               evidence, evaluation, suggestion, justification, conceptual_focus
     """
-    # Title (Line 1)
-    st.markdown(f"### {item.get('title', 'Feedback')}")
-    
-    # Summary (Line 2)
+    # Summary (first line)
     summary = item.get("summary", "").strip()
     if summary:
-        st.markdown(f"**Summary:** {summary}")
+        st.markdown(summary)
     
     # Observation (optional)
     observation = item.get("observation", "").strip()
@@ -532,11 +529,6 @@ def render_feedback_item(item: Dict) -> None:
     justification = item.get("justification", "").strip()
     if justification:
         st.markdown(f"**Rationale:** {justification}")
-    
-    # Domain label (optional, shown subtly)
-    conceptual_focus = item.get("conceptual_focus", "").strip()
-    if conceptual_focus:
-        st.caption(f"Domain: {conceptual_focus}")
 
 
 # ==================== STREAMLIT APP ====================

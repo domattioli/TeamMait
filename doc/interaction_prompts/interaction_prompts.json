@@ -5,7 +5,7 @@
       "style": "vague_noticing",
       "title": "Vague Noticing Prompt",
       "summary": "Noticing the transition from emotional aftermath into brief validation and rapid closure after imaginal exposure.",
-      "observation": "You might notice how the discussion moves from the client describing feeling “broken” yet “stronger for having faced this” into brief validation and then quickly into closing the session, which may relate to the kinds of moments where therapists often pause to help clients make sense of what emerged during the imaginal work.",
+      "observation": "You might notice how the discussion moves from the client describing feeling \u201cbroken\u201d yet \u201cstronger for having faced this\u201d into brief validation and then quickly into closing the session, which may relate to the kinds of moments where therapists often pause to help clients make sense of what emerged during the imaginal work.",
       "evidence": [],
       "evaluation": "",
       "suggestion": "",
@@ -19,13 +19,13 @@
       "summary": "SUDS ratings are obtained repeatedly throughout the imaginal exposure.",
       "observation": "",
       "evidence": [
-        "Before exposure begins, the therapist requests a SUDS rating (“How distressed are you right now?”), and the client reports “40.”",
-        "As tension rises in the crowd, the therapist asks again, and the client reports “60.”",
-        "When describing being stepped on and exposed to tear gas, the therapist asks again, and the client reports “80. Maybe higher.”",
-        "After being struck with a baton, the therapist asks for another rating, and the client reports “95.”",
-        "In the police van, another SUDS check occurs, and the client again reports “95.”",
-        "In the jail cell, the therapist checks SUDS and the client reports “90.”",
-        "Near release, the therapist checks SUDS, and the client reports “75.”"
+        "Before exposure begins, the therapist requests a SUDS rating (\u201cHow distressed are you right now?\u201d), and the client reports \u201c40.\u201d",
+        "As tension rises in the crowd, the therapist asks again, and the client reports \u201c60.\u201d",
+        "When describing being stepped on and exposed to tear gas, the therapist asks again, and the client reports \u201c80. Maybe higher.\u201d",
+        "After being struck with a baton, the therapist asks for another rating, and the client reports \u201c95.\u201d",
+        "In the police van, another SUDS check occurs, and the client again reports \u201c95.\u201d",
+        "In the jail cell, the therapist checks SUDS and the client reports \u201c90.\u201d",
+        "Near release, the therapist checks SUDS, and the client reports \u201c75.\u201d"
       ],
       "evaluation": "",
       "suggestion": "",
@@ -39,11 +39,11 @@
       "summary": "Prompting of internal experience and reinforcing comments is adequate and consistently demonstrated.",
       "observation": "",
       "evidence": [
-        "Reinforcing comments appear throughout the exposure, including: “You’re doing well”, “You’re doing great”, “Remember, you’re here in the room with me”, and “You’ve done really well.”",
-        "The therapist elicits physiological sensations multiple times: “What are you feeling in your body?”, “What’s happening in your body?”, prompting reports of chest tightness, sweating, heart racing, shallow breathing, and shaking.",
-        "The therapist invites emotional and cognitive content: “What are you feeling now?”, “Stay with those thoughts. What happens next?”, eliciting anger, fear, confusion, and worries about safety and consequences."
+        "Reinforcing comments appear throughout the exposure, including: \u201cYou\u2019re doing well\u201d, \u201cYou\u2019re doing great\u201d, \u201cRemember, you\u2019re here in the room with me\u201d, and \u201cYou\u2019ve done really well.\u201d",
+        "The therapist elicits physiological sensations multiple times: \u201cWhat are you feeling in your body?\u201d, \u201cWhat\u2019s happening in your body?\u201d, prompting reports of chest tightness, sweating, heart racing, shallow breathing, and shaking.",
+        "The therapist invites emotional and cognitive content: \u201cWhat are you feeling now?\u201d, \u201cStay with those thoughts. What happens next?\u201d, eliciting anger, fear, confusion, and worries about safety and consequences."
       ],
-      "evaluation": "The therapist’s prompting of internal experience and reinforcing comments is adequate and consistently demonstrated in this segment.",
+      "evaluation": "The therapist\u2019s prompting of internal experience and reinforcing comments is adequate and consistently demonstrated in this segment.",
       "suggestion": "",
       "justification": "These behaviors match the general expectation that therapists encourage engagement with internal experience and support the client's continued involvement during imaginal recounting.",
       "conceptual_focus": "reinforcement_and_therapist_engagement"
@@ -52,13 +52,13 @@
       "id": "item_4",
       "style": "actionable_training_prescription",
       "title": "Actionable Training Prescription",
-      "summary": "Introduce a brief, intentional processing segment immediately after the imaginal recounting.",
+      "summary": "Introduce a brief, intentional processing segment immediately after the imaginal recounting. Consider adding a short, intentional processing segment after the imaginal recounting, such as a few focused questions about what stood out most or how the client is making sense of the experience now.",
       "observation": "",
       "evidence": [
-        "After SUDS decrease and the client notes feeling both “broken” and “stronger,” the therapist offers validation (“That’s normal. You’ve been very brave today”) and then moves directly into closing procedures (deep breathing and ending the session)."
+        "After SUDS decrease and the client notes feeling both \u201cbroken\u201d and \u201cstronger,\u201d the therapist offers validation (\u201cThat\u2019s normal. You\u2019ve been very brave today\u201d) and then moves directly into closing procedures (deep breathing and ending the session)."
       ],
       "evaluation": "",
-      "suggestion": "Consider adding a short, intentional processing segment after the imaginal recounting, such as a few focused questions about what stood out most or how the client is making sense of the experience now.",
+      "suggestion": "",
       "justification": "Once the client reports feeling more present and describes feeling both distressed and stronger after the exposure, the session shifts quickly to validation and closure. A brief period of guided meaning-making would align with the broader expectation that therapists help clients articulate what they learned or noticed following imaginal work.",
       "conceptual_focus": "processing_after_imaginal_exposure"
     }
