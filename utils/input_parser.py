@@ -39,6 +39,24 @@ class InputParser:
         "q",
     }
 
+    # Phrases that indicate user wants to move on (but used informal language)
+    NAVIGATION_INTENT_PHRASES = {
+        "ready to move on",
+        "ready to proceed",
+        "ready for next",
+        "let's move on",
+        "move on",
+        "go to next",
+        "go next",
+        "that's it",
+        "done with this",
+        "finished with this",
+        "moving on",
+        "next please",
+        "ok next",
+        "alright next",
+    }
+
     # Common typos of "next"
     NEXT_TYPOS = {
         "nxt",
@@ -91,6 +109,13 @@ class InputParser:
         # Check for exit commands (only in active/review)
         if phase in ("active", "review") and cleaned_lower in InputParser.EXIT_COMMANDS:
             return "command", "exit", None
+
+        # ==================== NAVIGATION INTENT DETECTION ====================
+
+        # Check if user expressed intent to move on but didn't use explicit "next"
+        for phrase in InputParser.NAVIGATION_INTENT_PHRASES:
+            if phrase in cleaned_lower:
+                return "navigation_intent", "next", None
 
         # ==================== FUZZY MATCH FOR "NEXT" ====================
 
@@ -174,8 +199,8 @@ class InputParser:
 **Navigation Rules:**
 - You can only move **forward** through observations (required for the study)
 - You can revisit previous observations during the review phase
-- You can discuss each observation as long as you want
-- No time limit on individual observations (but 20 minutes total)
+- You have **20 minutes total** for the entire session (applies across all observations)
+    - Manage your time strategically -- in the essence of time we need to limit this module to 20 minutes total.
 
 **Tips:**
 - Type a question or response to discuss the current observation
