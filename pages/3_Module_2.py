@@ -1161,16 +1161,18 @@ elif st.session_state.guided_phase == "active":
 
         # Display conversation history for this observation WITH TIMESTAMPS
         for msg in st.session_state.all_conversations[current_idx]:
+            timestamp = msg.get("timestamp", "")
+            time_str = ""
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    pass
+            
             with st.chat_message(msg["role"]):
-                # Show timestamp if available
-                timestamp = msg.get("timestamp", "")
-                if timestamp:
-                    try:
-                        dt = datetime.fromisoformat(timestamp)
-                        time_str = dt.strftime("%H:%M")
-                        st.caption(f"_{time_str}_")
-                    except:
-                        pass
+                if time_str:
+                    st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
 
         # User input
@@ -1218,128 +1220,139 @@ elif st.session_state.guided_phase == "active":
                         }
                     )
 
-                    with st.chat_message("user"):
-                        st.caption(f"_{datetime.now().strftime('%H:%M')}_")
-                        st.markdown(user_input)
+                    # Immediately add a placeholder assistant message showing "Thinking..."
+                    st.session_state.all_conversations[current_idx].append(
+                        {
+                            "role": "assistant",
+                            "content": "*Thinking...*",
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    )
+                    
+                    sync_session_to_storage()
+                    st.rerun()  # Rerun to display both messages immediately
 
-                        # Generate AI response
-                        current_q_data = st.session_state.question_bank[current_idx]
-                        context = retrieve_context(user_input)
-                        observation = current_q_data.get('summary', '')
-                        system_prompt = (
-                            build_system_prompt()
-                            + f"\n\nFocus area:\n{observation}\n\n"
-                            f"Context from transcript:\n{context}"
-                        )
 
-                        try:
-                            # Generate response
-                            acc = ""
-                            start_time = time.time()
+# Continue processing after rerun if we have a thinking message
+if st.session_state.guided_phase == "active" and st.session_state.all_conversations[current_idx]:
+    if st.session_state.all_conversations[current_idx][-1]["content"] == "*Thinking...*":
+        # Get the user message (it's the one before thinking)
+        user_input = st.session_state.all_conversations[current_idx][-2]["content"] if len(st.session_state.all_conversations[current_idx]) > 1 else ""
+        
+        # Generate AI response to replace the thinking message
+        current_q_data = st.session_state.question_bank[current_idx]
+        context = retrieve_context(user_input)
+        observation = current_q_data.get('summary', '')
+        system_prompt = (
+            build_system_prompt()
+            + f"\n\nFocus area:\n{observation}\n\n"
+            f"Context from transcript:\n{context}"
+        )
 
-                            response_gen = OpenAIHandler.openai_complete(
-                                history=st.session_state.all_conversations[current_idx],
-                                system_text=system_prompt,
-                                client=client,
-                                stream=True,
-                                max_tokens=512,
-                                max_retries=2,
-                                timeout=30,
-                            )
+        try:
+            # Generate response
+            acc = ""
+            start_time = time.time()
 
-                            for chunk in response_gen:
-                                acc += chunk
+            response_gen = OpenAIHandler.openai_complete(
+                history=st.session_state.all_conversations[current_idx],
+                system_text=system_prompt,
+                client=client,
+                stream=True,
+                max_tokens=512,
+                max_retries=2,
+                timeout=30,
+            )
 
-                            generation_time = time.time() - start_time
+            for chunk in response_gen:
+                acc += chunk
 
-                            # Save to history WITH TIMESTAMP
-                            st.session_state.all_conversations[current_idx].append(
-                                {
-                                    "role": "assistant",
-                                    "content": acc.strip(),
-                                    "timestamp": datetime.now().isoformat()
-                                }
-                            )
+            generation_time = time.time() - start_time
 
-                            # Log response
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            tokens_estimated = len(acc) // 4
-                            analytics.ai_response(
-                                username,
-                                st.session_state.guided_session_id,
-                                current_idx,
-                                elapsed_seconds,
-                                len(acc),
-                                tokens_estimated,
-                                generation_time,
-                            )
+            # Replace the thinking message with the actual response
+            st.session_state.all_conversations[current_idx][-1] = {
+                "role": "assistant",
+                "content": acc.strip(),
+                "timestamp": datetime.now().isoformat()
+            }
 
-                            sync_session_to_storage()
-                            st.rerun()
+            # Log response
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            tokens_estimated = len(acc) // 4
+            analytics.ai_response(
+                username,
+                st.session_state.guided_session_id,
+                current_idx,
+                elapsed_seconds,
+                len(acc),
+                tokens_estimated,
+                generation_time,
+            )
 
-                        except (APIRetryableError, APIPermanentError) as e:
-                            error_msg = OpenAIHandler.format_error_message(e)
-                            st.error(error_msg)
+            sync_session_to_storage()
+            # Don't rerun - let message display on next timer tick
 
-                            # Remove the user message to keep state clean
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+        except (APIRetryableError, APIPermanentError) as e:
+            error_msg = OpenAIHandler.format_error_message(e)
+            st.error(error_msg)
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+            # Remove both user and thinking messages on error
+            st.session_state.all_conversations[current_idx].pop()
+            st.session_state.all_conversations[current_idx].pop()
+            sync_session_to_storage()
 
-                            logger.error(f"API error in observation {current_idx}: {e}")
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            analytics.error_occurred(
+                username,
+                st.session_state.guided_session_id,
+                type(e).__name__,
+                str(e),
+                elapsed_seconds,
+                {"context": "ai_response", "observation_idx": current_idx},
+            )
 
-                        except Exception as e:
-                            error_msg = "Unexpected error. Please try again."
-                            st.error(error_msg)
+            logger.error(f"API error in observation {current_idx}: {e}")
 
-                            # Remove the user message
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+        except Exception as e:
+            error_msg = "Unexpected error. Please try again."
+            st.error(error_msg)
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+            # Remove both user and thinking messages on error
+            st.session_state.all_conversations[current_idx].pop()
+            st.session_state.all_conversations[current_idx].pop()
+            sync_session_to_storage()
 
-                            logger.error(
-                                f"Unexpected error in observation {current_idx}: {e}",
-                                exc_info=True,
-                            )
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            analytics.error_occurred(
+                username,
+                st.session_state.guided_session_id,
+                type(e).__name__,
+                str(e),
+                elapsed_seconds,
+                {"context": "ai_response", "observation_idx": current_idx},
+            )
 
-    else:
-        # All observations done
-        st.session_state.guided_phase = "review"
-        sync_session_to_storage()
-        st.rerun()
+            logger.error(
+                f"Unexpected error in observation {current_idx}: {e}",
+                exc_info=True,
+            )
+
+    # Don't auto-transition to review - user must click Next button
 
 # ==================== TIME EXPIRED PHASE ====================
 
@@ -1375,18 +1388,21 @@ elif st.session_state.guided_phase == "expired":
     
     # Show previous messages with timestamps (NEVER ERASE!)
     st.markdown("### Your Previous Discussion")
+    
     if st.session_state.all_conversations[current_idx]:
         for msg in st.session_state.all_conversations[current_idx]:
+            timestamp = msg.get("timestamp", "")
+            time_str = ""
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    pass
+            
             with st.chat_message(msg["role"]):
-                # Show timestamp if available
-                timestamp = msg.get("timestamp", "")
-                if timestamp:
-                    try:
-                        dt = datetime.fromisoformat(timestamp)
-                        time_str = dt.strftime("%H:%M")
-                        st.caption(f"_{time_str}_")
-                    except:
-                        pass
+                if time_str:
+                    st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
     else:
         st.info("No messages yet")
@@ -1561,16 +1577,18 @@ elif st.session_state.guided_phase == "review":
 
         # Display conversation history WITH TIMESTAMPS
         for msg in st.session_state.all_conversations[current_idx]:
+            timestamp = msg.get("timestamp", "")
+            time_str = ""
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    pass
+            
             with st.chat_message(msg["role"]):
-                # Show timestamp if available
-                timestamp = msg.get("timestamp", "")
-                if timestamp:
-                    try:
-                        dt = datetime.fromisoformat(timestamp)
-                        time_str = dt.strftime("%H:%M")
-                        st.caption(f"_{time_str}_")
-                    except:
-                        pass
+                if time_str:
+                    st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
 
         # User input
@@ -1610,138 +1628,145 @@ elif st.session_state.guided_phase == "review":
                     st.warning("That looks like the same message. Please type something new.")
                 else:
                     # Add to history WITH TIMESTAMP
+                    # Immediately add a placeholder assistant message showing "Thinking..."
                     st.session_state.all_conversations[current_idx].append(
                         {
-                            "role": "user",
-                            "content": user_input,
+                            "role": "assistant",
+                            "content": "*Thinking...*",
                             "timestamp": datetime.now().isoformat()
                         }
                     )
+                    
+                    sync_session_to_storage()
+                    st.rerun()  # Rerun to display both messages immediately
 
-                    with st.chat_message("user"):
-                        st.caption(f"_{datetime.now().strftime('%H:%M')}_")
-                        st.markdown(user_input)
 
-                        # Generate AI response
-                        context = retrieve_context(user_input)
-                        
-                        # In open chat mode, use generic system prompt; otherwise, reference specific observation
-                        if is_open_chat:
-                            system_prompt = (
-                                build_system_prompt()
-                                + f"\n\nContext from transcript:\n{context}"
-                            )
-                        else:
-                            current_q_data = st.session_state.question_bank[current_idx]
-                            observation = current_q_data.get('summary', '')
-                            system_prompt = (
-                                build_system_prompt()
-                                + f"\n\nFocus area:\n{observation}\n\n"
-                                f"Context from transcript:\n{context}"
-                            )
+# Continue processing for review/open chat if we have a thinking message
+if st.session_state.guided_phase == "review" and st.session_state.all_conversations[current_idx]:
+    if st.session_state.all_conversations[current_idx][-1]["content"] == "*Thinking...*":
+        # Get the user message (it's the one before thinking)
+        user_input = st.session_state.all_conversations[current_idx][-2]["content"] if len(st.session_state.all_conversations[current_idx]) > 1 else ""
+        
+        # Generate AI response to replace the thinking message
+        context = retrieve_context(user_input)
+        
+        # In open chat mode, use generic system prompt; otherwise, reference specific observation
+        if is_open_chat:
+            system_prompt = (
+                build_system_prompt()
+                + f"\n\nContext from transcript:\n{context}"
+            )
+        else:
+            current_q_data = st.session_state.question_bank[current_idx]
+            observation = current_q_data.get('summary', '')
+            system_prompt = (
+                build_system_prompt()
+                + f"\n\nFocus area:\n{observation}\n\n"
+                f"Context from transcript:\n{context}"
+            )
 
-                        try:
-                            # Generate response
-                            acc = ""
-                            start_time = time.time()
+        try:
+            # Generate response
+            acc = ""
+            start_time = time.time()
 
-                            response_gen = OpenAIHandler.openai_complete(
-                                history=st.session_state.all_conversations[current_idx],
-                                system_text=system_prompt,
-                                client=client,
-                                stream=True,
-                                max_tokens=512,
-                                max_retries=2,
-                                timeout=30,
-                            )
+            response_gen = OpenAIHandler.openai_complete(
+                history=st.session_state.all_conversations[current_idx],
+                system_text=system_prompt,
+                client=client,
+                stream=True,
+                max_tokens=512,
+                max_retries=2,
+                timeout=30,
+            )
 
-                            for chunk in response_gen:
-                                acc += chunk
+            for chunk in response_gen:
+                acc += chunk
 
-                            generation_time = time.time() - start_time
+            generation_time = time.time() - start_time
 
-                            # Save to history WITH TIMESTAMP
-                            st.session_state.all_conversations[current_idx].append(
-                                {
-                                    "role": "assistant",
-                                    "content": acc.strip(),
-                                    "timestamp": datetime.now().isoformat()
-                                }
-                            )
+            # Replace the thinking message with the actual response
+            st.session_state.all_conversations[current_idx][-1] = {
+                "role": "assistant",
+                "content": acc.strip(),
+                "timestamp": datetime.now().isoformat()
+            }
 
-                            # Log response
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            tokens_estimated = len(acc) // 4
-                            analytics.ai_response(
-                                username,
-                                st.session_state.guided_session_id,
-                                current_idx,
-                                elapsed_seconds,
-                                len(acc),
-                                tokens_estimated,
-                                generation_time,
-                            )
+            # Log response
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            tokens_estimated = len(acc) // 4
+            analytics.ai_response(
+                username,
+                st.session_state.guided_session_id,
+                current_idx,
+                elapsed_seconds,
+                len(acc),
+                tokens_estimated,
+                generation_time,
+            )
 
-                            sync_session_to_storage()
-                            st.rerun()
+            sync_session_to_storage()
+            # Don't rerun - let message display on next timer tick
 
-                        except (APIRetryableError, APIPermanentError) as e:
-                            error_msg = OpenAIHandler.format_error_message(e)
-                            st.error(error_msg)
+        except (APIRetryableError, APIPermanentError) as e:
+            error_msg = OpenAIHandler.format_error_message(e)
+            st.error(error_msg)
 
-                            # Remove the user message to keep state clean
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+            # Remove both user and thinking messages on error
+            st.session_state.all_conversations[current_idx].pop()
+            st.session_state.all_conversations[current_idx].pop()
+            sync_session_to_storage()
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            analytics.error_occurred(
+                username,
+                st.session_state.guided_session_id,
+                type(e).__name__,
+                str(e),
+                elapsed_seconds,
+                {"context": "ai_response", "observation_idx": current_idx},
+            )
 
-                            logger.error(f"API error in observation {current_idx}: {e}")
+            logger.error(f"API error in observation {current_idx}: {e}")
 
-                        except Exception as e:
-                            error_msg = "Unexpected error. Please try again."
-                            st.error(error_msg)
+        except Exception as e:
+            error_msg = "Unexpected error. Please try again."
+            st.error(error_msg)
 
-                            # Remove the user message
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+            # Remove both user and thinking messages on error
+            st.session_state.all_conversations[current_idx].pop()
+            st.session_state.all_conversations[current_idx].pop()
+            sync_session_to_storage()
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+            if st.session_state.guided_session_start is not None:
+                elapsed_seconds = (
+                    datetime.now() - st.session_state.guided_session_start
+                ).total_seconds()
+            else:
+                elapsed_seconds = 0
+            analytics.error_occurred(
+                username,
+                st.session_state.guided_session_id,
+                type(e).__name__,
+                str(e),
+                elapsed_seconds,
+                {"context": "ai_response", "observation_idx": current_idx},
+            )
 
-                            logger.error(
-                                f"Unexpected error in observation {current_idx}: {e}",
-                                exc_info=True,
-                            )
+            logger.error(
+                f"Unexpected error in observation {current_idx}: {e}",
+                exc_info=True,
+            )
         
         # Back button to return to Review or Open Chat
         if is_open_chat:
