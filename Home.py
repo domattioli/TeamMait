@@ -68,7 +68,7 @@ st.markdown("""
 ## Welcome!
 
 - TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
-- You will be **role-playing as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
+- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
 
 ### Instructions
 - For each of the two modules you can find a transcript between a unique therapist and their unique patient in the left side panel of that page.**
