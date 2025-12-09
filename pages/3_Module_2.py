@@ -459,9 +459,11 @@ def load_question_bank() -> Optional[List[Dict]]:
             st.stop()
         found_styles.add(style)
 
-        # Validate that summary is not empty
-        if not isinstance(q.get("summary", ""), str) or not q.get("summary", "").strip():
-            error_msg = f"Item {i + 1}: 'summary' is empty"
+        # Validate that at least summary or observation is present
+        summary = q.get("summary", "").strip() if isinstance(q.get("summary", ""), str) else ""
+        observation = q.get("observation", "").strip() if isinstance(q.get("observation", ""), str) else ""
+        if not summary and not observation:
+            error_msg = f"Item {i + 1}: must have either 'summary' or 'observation'"
             logger.error(error_msg)
             st.error(f"{error_msg}")
             st.stop()
@@ -990,8 +992,8 @@ elif st.session_state.guided_phase == "active":
 
         st.divider()
         st.info(
-            "type a response to discuss this observation, "
-            "or ose the **⏭️ Next** button to move to the next observation." \
+            "type a response to discuss this item, "
+            "or use the **⏭️ Next** button to move to the next one." \
         )
         st.divider()
 
