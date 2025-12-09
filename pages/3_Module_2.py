@@ -280,23 +280,22 @@ def load_rag_documents():
     # ==================== SUPPORTING DOCUMENTS ====================
 
     supporting_folder = os.path.join(doc_folder, "supporting_documents")
+    
+    # Only load these specific files for Module 2
+    allowed_files = {
+        "281_P10_metadata.json",
+        "PE Consultant Training Program Fidelity.docx",
+        "pe consultant training program fidelity.docx",
+    }
 
     if not os.path.exists(supporting_folder):
         logger.warning(f"Supporting documents folder not found: {supporting_folder}")
     else:
-        # Load TXT files
-        for txt_path in glob.glob(os.path.join(supporting_folder, "*.txt")):
-            try:
-                with open(txt_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    documents.append(content)
-                    ids.append(f"supp_txt_{os.path.basename(txt_path)}")
-                    load_status["supporting"] += 1
-            except Exception as e:
-                logger.error(f"Error loading {txt_path}: {e}")
-
-        # Load JSON files
+        # Load JSON files (only 281_P10_metadata.json)
         for json_path in glob.glob(os.path.join(supporting_folder, "*.json")):
+            basename = os.path.basename(json_path)
+            if basename not in allowed_files:
+                continue
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -304,23 +303,26 @@ def load_rag_documents():
                         for i, item in enumerate(data):
                             documents.append(str(item))
                             ids.append(
-                                f"supp_json_{os.path.basename(json_path)}_{i}"
+                                f"supp_json_{basename}_{i}"
                             )
                         load_status["supporting"] += len(data)
                     else:
                         documents.append(str(data))
-                        ids.append(f"supp_json_{os.path.basename(json_path)}")
+                        ids.append(f"supp_json_{basename}")
                         load_status["supporting"] += 1
             except Exception as e:
                 logger.error(f"Error loading {json_path}: {e}")
 
-        # Load DOCX files
+        # Load DOCX files (PE Consultant Training Program Fidelity)
         for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
+            basename = os.path.basename(docx_path)
+            if not any(allowed.lower() == basename.lower() for allowed in allowed_files):
+                continue
             try:
                 content = extract_text_from_docx(docx_path)
                 if content and not content.startswith("[Error"):
                     documents.append(content)
-                    ids.append(f"supp_docx_{os.path.basename(docx_path)}")
+                    ids.append(f"supp_docx_{basename}")
                     load_status["supporting"] += 1
             except Exception as e:
                 logger.error(f"Error loading {docx_path}: {e}")
@@ -499,6 +501,9 @@ if "all_conversations" not in st.session_state:
     st.session_state.all_conversations = {
         int(k): v for k, v in saved_conversations.items()
     }
+    # Initialize open chat conversation if not present
+    if "open_chat" not in st.session_state.all_conversations:
+        st.session_state.all_conversations["open_chat"] = []
 
 if "guided_phase" not in st.session_state:
     st.session_state.guided_phase = "intro"
@@ -511,6 +516,9 @@ if "question_bank" not in st.session_state:
 
 if "message_buffer" not in st.session_state:
     st.session_state.message_buffer = MessageBuffer()
+
+if "open_chat_mode" not in st.session_state:
+    st.session_state.open_chat_mode = False
 
 # Load RAG documents
 rag_status = load_rag_documents()
@@ -743,7 +751,7 @@ with st.sidebar:
         # Single progress bar for overall session progress
         time_progress = min(elapsed.total_seconds() / SESSION_DURATION.total_seconds(), 1.0)
         st.progress(time_progress)
-        st.caption(f"_Timer updates when you send messages (Streamlit limitation)_")
+        st.caption(f"_Timer updates when you send messages._")
 
     # Progress tracker
     st.markdown("### Progress")
@@ -752,9 +760,9 @@ with st.sidebar:
     # Control buttons
     st.markdown("### Controls")
     
-    # Help button
+    # Help button (always available)
     if st.button("ℹ️ Help", use_container_width=True, key="help_button"):
-        st.session_state["show_help"] = True
+        st.session_state["show_help"] = not st.session_state.get("show_help", False)
         st.rerun()
     
     # Start button (only in intro phase)
@@ -863,8 +871,6 @@ if st.session_state.guided_phase == "intro":
         st.info(InputParser.get_help_message())
         st.session_state["show_help"] = False
 
-# ==================== ACTIVE PHASE ====================
-
 elif st.session_state.guided_phase == "active":
     if st.session_state.current_question_idx < len(st.session_state.question_bank):
         current_q = st.session_state.question_bank[
@@ -889,8 +895,8 @@ elif st.session_state.guided_phase == "active":
 
         st.divider()
         st.info(
-            "Use the **⏭️ Next** button to move to the next observation, "
-            "or type a response to discuss this observation."
+            "type a response to discuss this observation, "
+            "or ose the **⏭️ Next** button to move to the next observation." \
         )
         st.divider()
 
@@ -997,7 +1003,7 @@ elif st.session_state.guided_phase == "active":
                                         first_chunk = False
 
                                     acc += chunk
-                                    placeholder.markdown(acc)
+                                    placeholder.markdown(acc.lstrip())
 
                                 generation_time = time.time() - start_time
 
@@ -1199,7 +1205,7 @@ elif st.session_state.guided_phase == "expired":
                         first_chunk = False
                     
                     acc += chunk
-                    placeholder.markdown(acc)
+                    placeholder.markdown(acc.lstrip())
                 
                 # Save synthesis with timestamp
                 st.session_state.all_conversations[current_idx].append(
@@ -1259,34 +1265,51 @@ elif st.session_state.guided_phase == "review":
         len(st.session_state.question_bank),
     )
 
-    # Check if viewing a specific observation or just the list
-    if st.session_state.current_question_idx < len(st.session_state.question_bank):
-        current_q = st.session_state.question_bank[st.session_state.current_question_idx]
+    # Determine which conversation to use
+    if st.session_state.open_chat_mode:
+        current_idx = "open_chat"
+        is_open_chat = True
+    else:
         current_idx = st.session_state.current_question_idx
+        is_open_chat = False
 
-        # Show observation header
-        st.markdown(f"### Observation {current_idx + 1} of 4 (Review Mode)")
+    # Check if viewing a specific observation or just the list
+    if is_open_chat or current_idx < len(st.session_state.question_bank):
+        # Display header based on mode
+        if is_open_chat:
+            st.markdown("### 💬 Open Chat - Free Discussion")
+            st.divider()
+            st.info(
+                "Start a free-form conversation about the session, observations, or anything on your mind. "
+                "Use the **← Back to Observations** button to return to the observation list."
+            )
+        else:
+            current_q = st.session_state.question_bank[current_idx]
+
+            # Show observation header
+            st.markdown(f"### Observation {current_idx + 1} of 4 (Review Mode)")
+            st.divider()
+
+            # Show the observation with better structure
+            with st.container(border=True):
+                st.markdown("**Assertion**")
+                st.markdown(current_q.get("assertion", "Observation"))
+
+                st.markdown("**Context**")
+                st.markdown(current_q.get("explanation", ""))
+
+                st.markdown("**Your thoughts:**")
+                st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
+
+            st.divider()
+            st.info(
+                "Use the **⏭️ Next** button to finish or return to the observation list, "
+                "or type a response to continue discussing this observation."
+            )
+
         st.divider()
 
-        # Show the observation with better structure
-        with st.container(border=True):
-            st.markdown("**Assertion**")
-            st.markdown(current_q.get("assertion", "Observation"))
-
-            st.markdown("**Context**")
-            st.markdown(current_q.get("explanation", ""))
-
-            st.markdown("**Your thoughts:**")
-            st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
-
-        st.divider()
-        st.info(
-            "Use the **⏭️ Next** button to finish or return to the observation list, "
-            "or type a response to continue discussing this observation."
-        )
-        st.divider()
-
-        # Display conversation history for this observation WITH TIMESTAMPS
+        # Display conversation history WITH TIMESTAMPS
         for msg in st.session_state.all_conversations[current_idx]:
             with st.chat_message(msg["role"]):
                 # Show timestamp if available
@@ -1389,7 +1412,7 @@ elif st.session_state.guided_phase == "review":
                                         first_chunk = False
 
                                     acc += chunk
-                                    placeholder.markdown(acc)
+                                    placeholder.markdown(acc.lstrip())
 
                                 generation_time = time.time() - start_time
 
@@ -1476,14 +1499,21 @@ elif st.session_state.guided_phase == "review":
                                     exc_info=True,
                                 )
         
-        # Back button to return to observation list
-        if st.button("← Back to Observation List", use_container_width=True):
+        # Back button to return to Review or Open Chat
+        if is_open_chat:
+            back_button_label = "← Back to Observations"
+        else:
+            back_button_label = "← Review"
+        
+        if st.button(back_button_label, use_container_width=True):
+            if is_open_chat:
+                st.session_state.open_chat_mode = False
             st.session_state.current_question_idx = len(st.session_state.question_bank)
             st.rerun()
 
     else:
         # Show observation list
-        st.success(f"### ✅ You've completed all observations!")
+        st.success(f"### You've completed all observations!")
         
         remaining_time_sec = max(0, int(remaining.total_seconds()))
         if remaining_time_sec > 0:
@@ -1515,7 +1545,9 @@ elif st.session_state.guided_phase == "review":
 
             for i in range(min(4, len(st.session_state.question_bank))):
                 with cols[i]:
-                    if st.button(f"Obs {i + 1}", use_container_width=True, key=f"revisit_{i}"):
+                    # Get label from question bank, fallback to "Observation N"
+                    obs_label = st.session_state.question_bank[i].get("label", f"Observation {i + 1}")
+                    if st.button(obs_label, use_container_width=True, key=f"revisit_{i}"):
                         success, error = handle_navigation(i, "review", log_event=False)
                         if success:
                             # Calculate elapsed time safely
@@ -1531,6 +1563,18 @@ elif st.session_state.guided_phase == "review":
                                 elapsed,
                             )
                             st.rerun()
+
+            st.divider()
+
+            # Add Open Chat button for free discussion
+            if st.button(
+                "💬 Open Chat - Free Discussion",
+                use_container_width=True,
+                help="Start a free-form conversation without an observation prompt"
+            ):
+                st.session_state.current_question_idx = len(st.session_state.question_bank)
+                st.session_state.open_chat_mode = True
+                st.rerun()
 
             st.divider()
 
