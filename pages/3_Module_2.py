@@ -375,7 +375,12 @@ def load_reference_conversation() -> List[str]:
 
 
 def load_question_bank() -> Optional[List[Dict]]:
-    """Load and validate the question bank."""
+    """Load and validate the question bank.
+    
+    Returns items in order:
+    - Items 1-3 (vague_noticing, evidence_only_reflection, evidence_based_evaluation) are randomized
+    - Item 4 (actionable_training_prescription) always comes last
+    """
     question_path = "doc/interaction_prompts/interaction_prompts.json"
 
     # Check file exists
@@ -417,31 +422,121 @@ def load_question_bank() -> Optional[List[Dict]]:
         st.error(f"{error_msg}")
         st.stop()
 
-    # Validate each question
-    required_fields = {"assertion", "explanation", "invitation"}
+    # Validate structure: exactly 4 items with unique style values
+    valid_styles = {"vague_noticing", "evidence_only_reflection", "evidence_based_evaluation", "actionable_training_prescription"}
+    found_styles = set()
+    actionable_item = None
+    randomizable_items = []
+    
     for i, q in enumerate(questions[:4]):
         if not isinstance(q, dict):
-            error_msg = f"Question {i + 1} is not a dict"
+            error_msg = f"Item {i + 1} is not a dict"
             logger.error(error_msg)
             st.error(f"{error_msg}")
             st.stop()
 
+        # Check required fields
+        required_fields = {"id", "style", "title", "summary", "observation", "evidence", "evaluation", "suggestion", "justification", "conceptual_focus"}
         missing_fields = required_fields - set(q.keys())
         if missing_fields:
-            error_msg = f"Question {i + 1} missing fields: {missing_fields}"
+            error_msg = f"Item {i + 1} missing fields: {missing_fields}"
             logger.error(error_msg)
             st.error(f"{error_msg}")
             st.stop()
 
-        for field in required_fields:
-            if not isinstance(q[field], str) or not q[field].strip():
-                error_msg = f"Question {i + 1}: '{field}' is empty"
-                logger.error(error_msg)
-                st.error(f"{error_msg}")
-                st.stop()
+        # Validate style is one of the expected values
+        style = q.get("style", "")
+        if style not in valid_styles:
+            error_msg = f"Item {i + 1}: invalid style '{style}'. Must be one of: {valid_styles}"
+            logger.error(error_msg)
+            st.error(f"{error_msg}")
+            st.stop()
 
-    logger.info(f"Successfully validated {len(questions[:4])} questions")
-    return questions[:4]
+        if style in found_styles:
+            error_msg = f"Item {i + 1}: duplicate style '{style}'"
+            logger.error(error_msg)
+            st.error(f"{error_msg}")
+            st.stop()
+        found_styles.add(style)
+
+        # Validate that summary is not empty
+        if not isinstance(q.get("summary", ""), str) or not q.get("summary", "").strip():
+            error_msg = f"Item {i + 1}: 'summary' is empty"
+            logger.error(error_msg)
+            st.error(f"{error_msg}")
+            st.stop()
+
+        # Separate actionable item from randomizable items
+        if style == "actionable_training_prescription":
+            actionable_item = q
+        else:
+            randomizable_items.append(q)
+
+    # Check all required styles are present
+    if found_styles != valid_styles:
+        missing_styles = valid_styles - found_styles
+        error_msg = f"Missing required styles: {missing_styles}"
+        logger.error(error_msg)
+        st.error(f"{error_msg}")
+        st.stop()
+
+    # Randomize the first 3 items, then append actionable item last
+    import random
+    random.shuffle(randomizable_items)
+    ordered_items = randomizable_items + [actionable_item]
+
+    logger.info(f"Successfully validated 4 feedback items with all required styles (randomized first 3)")
+    return ordered_items
+
+
+def render_feedback_item(item: Dict) -> None:
+    """Render a feedback item with structured formatting.
+    
+    Args:
+        item: Dictionary containing feedback item with keys: title, summary, observation, 
+              evidence, evaluation, suggestion, justification, conceptual_focus
+    """
+    # Title (Line 1)
+    st.markdown(f"### {item.get('title', 'Feedback')}")
+    
+    # Summary (Line 2)
+    summary = item.get("summary", "").strip()
+    if summary:
+        st.markdown(f"**Summary:** {summary}")
+    
+    # Observation (optional)
+    observation = item.get("observation", "").strip()
+    if observation:
+        st.markdown("**Observation:**")
+        st.markdown(observation)
+    
+    # Evidence (optional, as bullet points)
+    evidence = item.get("evidence", [])
+    if evidence and isinstance(evidence, list) and any(e.strip() for e in evidence):
+        st.markdown("**Evidence:**")
+        for ev in evidence:
+            if isinstance(ev, str) and ev.strip():
+                st.markdown(f"- {ev}")
+    
+    # Evaluation (optional)
+    evaluation = item.get("evaluation", "").strip()
+    if evaluation:
+        st.markdown(f"**Evaluation:** {evaluation}")
+    
+    # Suggestion (optional)
+    suggestion = item.get("suggestion", "").strip()
+    if suggestion:
+        st.markdown(f"**Suggestion:** {suggestion}")
+    
+    # Justification (optional, shown as Rationale)
+    justification = item.get("justification", "").strip()
+    if justification:
+        st.markdown(f"**Rationale:** {justification}")
+    
+    # Domain label (optional, shown subtly)
+    conceptual_focus = item.get("conceptual_focus", "").strip()
+    if conceptual_focus:
+        st.caption(f"Domain: {conceptual_focus}")
 
 
 # ==================== STREAMLIT APP ====================
@@ -882,16 +977,9 @@ elif st.session_state.guided_phase == "active":
         st.markdown(f"### Observation {current_idx + 1} of 4")
         st.divider()
 
-        # Show the observation with better structure
+        # Show the observation with structured feedback item rendering
         with st.container(border=True):
-            st.markdown("**Assertion**")
-            st.markdown(current_q.get("assertion", "Observation"))
-
-            st.markdown("**Context**")
-            st.markdown(current_q.get("explanation", ""))
-
-            st.markdown("**Your thoughts:**")
-            st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
+            render_feedback_item(current_q)
 
         st.divider()
         st.info(
@@ -1290,16 +1378,9 @@ elif st.session_state.guided_phase == "review":
             st.markdown(f"### Observation {current_idx + 1} of 4 (Review Mode)")
             st.divider()
 
-            # Show the observation with better structure
+            # Show the observation with structured feedback item rendering
             with st.container(border=True):
-                st.markdown("**Assertion**")
-                st.markdown(current_q.get("assertion", "Observation"))
-
-                st.markdown("**Context**")
-                st.markdown(current_q.get("explanation", ""))
-
-                st.markdown("**Your thoughts:**")
-                st.markdown(f"*{current_q.get('invitation', 'What are your thoughts?')}*")
+                render_feedback_item(current_q)
 
             st.divider()
             st.info(
@@ -1522,7 +1603,7 @@ elif st.session_state.guided_phase == "review":
             st.markdown(f"**Observations reviewed:** {reviewed} / 4")
             st.markdown(f"**Time remaining:** {remaining_min}:{remaining_sec:02d}")
             st.markdown(
-                "Would you like to revisit any of the prior observations to discuss further?"
+        "Would you like to revisit any of the prior observations to discuss further? You may also open a free-form chat, or end the module."
             )
         else:
             st.warning("Your session time has expired.")
@@ -1532,7 +1613,7 @@ elif st.session_state.guided_phase == "review":
 
         if time_expired or remaining_time_sec <= 0:
             if st.button(
-                "Finish and Continue to Next Step",
+                "Finish Module",
                 type="primary",
                 use_container_width=True,
             ):
