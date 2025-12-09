@@ -895,17 +895,21 @@ with st.sidebar:
             for i, turn in enumerate(ref_conversation, 1):
                 line_num = i  # 1-indexed line numbers
                 is_client = turn.strip().startswith("Client: ")
+                # Extract speaker and content
+                speaker = "Client:" if is_client else "Therapist:"
+                content = turn.replace(f"{speaker} ", "", 1).strip()
+                
                 if is_client:
                     # Right-justify client's messages with custom CSS
                     st.markdown(f"""
                     <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
-                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}]</small><br>
-                    {turn}
+                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}] - {speaker}</small><br>
+                    {content}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     # Italicize therapist's messages, but keep line numbers unbolded
-                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}]</small><br><em>{turn}</em></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}] - {speaker}</small><br><em>{content}</em></div>", unsafe_allow_html=True)
         else:
             st.warning("Reference conversation not loaded")
 
