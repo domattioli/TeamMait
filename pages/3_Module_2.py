@@ -711,7 +711,7 @@ with st.sidebar:
         )
 
     # Combined Timer Display
-    st.markdown("### ⏱Session Timer")
+    st.markdown("### Session Timer")
     
     # Only show timer if session has started
     if st.session_state.guided_session_start is None:
@@ -748,6 +748,48 @@ with st.sidebar:
     # Progress tracker
     st.markdown("### Progress")
     st.metric("Observations", f"{st.session_state.current_question_idx} / 4")
+
+    # Control buttons
+    st.markdown("### Controls")
+    
+    # Help button
+    if st.button("ℹ️ Help", use_container_width=True, key="help_button"):
+        st.session_state["show_help"] = True
+        st.rerun()
+    
+    # Start button (only in intro phase)
+    if st.session_state.guided_phase == "intro":
+        if st.button("▶️ Start", use_container_width=True, key="start_button", type="primary"):
+            st.session_state.guided_session_start = datetime.now()
+            st.session_state.guided_phase = "active"
+            st.session_state.current_question_idx = 0
+            elapsed_seconds = 0
+            analytics.phase_transition(
+                username,
+                st.session_state.guided_session_id,
+                "intro",
+                "active",
+                elapsed_seconds,
+                {"observations_completed": 0},
+            )
+            sync_session_to_storage()
+            st.rerun()
+    
+    # Next button (only in active/review phases)
+    if st.session_state.guided_phase in ("active", "review"):
+        if st.button("⏭️ Next", use_container_width=True, key="next_button", type="primary"):
+            current_idx = st.session_state.current_question_idx
+            next_idx = current_idx + 1
+            
+            if next_idx >= len(st.session_state.question_bank):
+                success, error = handle_navigation(current_idx, "review", log_event=False)
+            else:
+                success, error = handle_navigation(next_idx, "active")
+            
+            if not success:
+                st.error(f"Cannot proceed: {error}")
+            else:
+                st.rerun()
 
     # Show reference conversation
     with st.expander("Reference Conversation", expanded=True):
@@ -803,7 +845,7 @@ if st.session_state.guided_phase == "intro":
     1. **Read each observation** - I'll present an assertion and context
     2. **Discuss or advance** - You can:
        - Type a question or comment to discuss the observation further
-       - Type **'next'** to move to the next observation
+       - Click the **⏭️ Next** button to move to the next observation
     3. **Review phase** - After all 4 observations, you can revisit any to discuss further
     4. **Time limit** - You have **20 minutes total** for the entire session
 
@@ -812,38 +854,14 @@ if st.session_state.guided_phase == "intro":
     - In the review phase, you can go back and revisit any observation
     - All your responses are automatically saved
 
-    **Ready to begin?** Type **'start'** below.
+    **Ready to begin?** Click the **▶️ Start** button in the sidebar.
     """
     )
-
-    user_input = st.chat_input("Type 'start' to begin the observations...")
-
-    if user_input:
-        input_type, content, suggestion = InputParser.parse(user_input, "intro")
-
-        if input_type == "command" and content == "next":
-            st.error("Please type 'start' to begin.")
-            # st.rerun()
-        elif input_type == "command" and content == "help":
-            st.info(InputParser.get_help_message())
-            # st.stop()
-        elif user_input.lower().strip() == "start":
-            st.session_state.guided_session_start = datetime.now()  # START TIMER NOW
-            st.session_state.guided_phase = "active"
-            st.session_state.current_question_idx = 0
-            elapsed_seconds = 0  # Just started
-            analytics.phase_transition(
-                username,
-                st.session_state.guided_session_id,
-                "intro",
-                "active",
-                elapsed_seconds,
-                {"observations_completed": 0},
-            )
-            sync_session_to_storage()
-            st.rerun()
-        else:
-            st.info("Type **'start'** to begin the observations.")
+    
+    # Show help if requested
+    if st.session_state.get("show_help", False):
+        st.info(InputParser.get_help_message())
+        st.session_state["show_help"] = False
 
 # ==================== ACTIVE PHASE ====================
 
@@ -871,8 +889,8 @@ elif st.session_state.guided_phase == "active":
 
         st.divider()
         st.info(
-            "Type **'next'** to move to the next observation, "
-            "**'help'** for commands, or type a response to discuss this observation."
+            "Use the **⏭️ Next** button to move to the next observation, "
+            "or type a response to discuss this observation."
         )
         st.divider()
 
@@ -901,63 +919,27 @@ elif st.session_state.guided_phase == "active":
                 sync_session_to_storage()
                 # st.rerun()
 
-            # Parse input
-            input_type, content, suggestion = InputParser.parse(
-                user_input, st.session_state.guided_phase
-            )
-
-            # Log user message - handle None start time
-            if st.session_state.guided_session_start is None:
-                elapsed_seconds = 0
+            # Check for navigation intent first
+            if InputParser.detect_navigation_intent(user_input):
+                st.info(InputParser.get_navigation_redirect_message())
             else:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            
-            analytics.user_message(
-                username,
-                st.session_state.guided_session_id,
-                current_idx,
-                elapsed_seconds,
-                len(user_input),
-                input_type,
-            )
-
-            if input_type == "command":
-                if content == "next":
-                    # Navigate to next observation
-                    next_idx = current_idx + 1
-                    if next_idx >= len(st.session_state.question_bank):
-                        success, error = handle_navigation(current_idx, "review", log_event=False)
-                        # if success:
-                            # st.rerun()
-                    else:
-                        success, error = handle_navigation(next_idx, "active")
-                        # if success:
-                            # st.rerun()
-                        if not success:
-                            st.error(f"Cannot proceed: {error}")
+                # Log user message - handle None start time
+                if st.session_state.guided_session_start is None:
+                    elapsed_seconds = 0
+                else:
+                    elapsed_seconds = (
+                        datetime.now() - st.session_state.guided_session_start
+                    ).total_seconds()
                 
-                elif content == "help":
-                    # Show help message
-                    st.info(InputParser.get_help_message())
-                    # Don't process further - just show and rerun
-                    # st.rerun()
-                
-                elif content == "exit":
-                    st.warning("Are you sure you want to exit? Type 'confirm exit' to leave.")
+                analytics.user_message(
+                    username,
+                    st.session_state.guided_session_id,
+                    current_idx,
+                    elapsed_seconds,
+                    len(user_input),
+                    "message",
+                )
 
-            elif input_type == "navigation_intent":
-                # User expressed intent to move on but didn't use explicit "next"
-                st.info("To move to the next observation, please type **'next'**.")
-
-            elif input_type == "probable_typo":
-                st.warning(InputParser.get_typo_warning(content, suggestion))
-
-            elif input_type == "empty":
-                st.info("Please type a message or command.")
-
-            else:  # Regular message
                 # Check for duplicates
                 if not st.session_state.message_buffer.add_message(user_input):
                     st.warning("That looks like the same message. Please type something new.")
@@ -975,132 +957,132 @@ elif st.session_state.guided_phase == "active":
                         st.caption(f"_{datetime.now().strftime('%H:%M')}_")
                         st.markdown(user_input)
 
-                    # Generate AI response
-                    current_q_data = st.session_state.question_bank[current_idx]
-                    context = retrieve_context(user_input)
-                    system_prompt = (
-                        build_system_prompt()
-                        + f"\n\nCurrent observation:\n"
-                        f"Assertion: {current_q_data.get('assertion', '')}\n"
-                        f"Explanation: {current_q_data.get('explanation', '')}\n\n"
-                        f"Context from transcript:\n{context}"
-                    )
+                        # Generate AI response
+                        current_q_data = st.session_state.question_bank[current_idx]
+                        context = retrieve_context(user_input)
+                        system_prompt = (
+                            build_system_prompt()
+                            + f"\n\nCurrent observation:\n"
+                            f"Assertion: {current_q_data.get('assertion', '')}\n"
+                            f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                            f"Context from transcript:\n{context}"
+                        )
 
-                    with st.chat_message("assistant"):
-                        placeholder = st.empty()
+                        with st.chat_message("assistant"):
+                            placeholder = st.empty()
 
-                        # Show loading state
-                        with placeholder.container():
-                            st.markdown("*Thinking...*")
+                            # Show loading state
+                            with placeholder.container():
+                                st.markdown("*Thinking...*")
 
-                        try:
-                            # Generate response
-                            acc = ""
-                            start_time = time.time()
-                            first_chunk = True
+                            try:
+                                # Generate response
+                                acc = ""
+                                start_time = time.time()
+                                first_chunk = True
 
-                            response_gen = OpenAIHandler.openai_complete(
-                                history=st.session_state.all_conversations[current_idx],
-                                system_text=system_prompt,
-                                client=client,
-                                stream=True,
-                                max_tokens=512,
-                                max_retries=2,
-                                timeout=30,
-                            )
+                                response_gen = OpenAIHandler.openai_complete(
+                                    history=st.session_state.all_conversations[current_idx],
+                                    system_text=system_prompt,
+                                    client=client,
+                                    stream=True,
+                                    max_tokens=512,
+                                    max_retries=2,
+                                    timeout=30,
+                                )
 
-                            for chunk in response_gen:
-                                if first_chunk:
-                                    placeholder.empty()
-                                    first_chunk = False
+                                for chunk in response_gen:
+                                    if first_chunk:
+                                        placeholder.empty()
+                                        first_chunk = False
 
-                                acc += chunk
-                                placeholder.markdown(acc)
+                                    acc += chunk
+                                    placeholder.markdown(acc)
 
-                            generation_time = time.time() - start_time
+                                generation_time = time.time() - start_time
 
-                            # Save to history WITH TIMESTAMP
-                            st.session_state.all_conversations[current_idx].append(
-                                {
-                                    "role": "assistant",
-                                    "content": acc.strip(),
-                                    "timestamp": datetime.now().isoformat()
-                                }
-                            )
+                                # Save to history WITH TIMESTAMP
+                                st.session_state.all_conversations[current_idx].append(
+                                    {
+                                        "role": "assistant",
+                                        "content": acc.strip(),
+                                        "timestamp": datetime.now().isoformat()
+                                    }
+                                )
 
-                            # Log response
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            tokens_estimated = len(acc) // 4
-                            analytics.ai_response(
-                                username,
-                                st.session_state.guided_session_id,
-                                current_idx,
-                                elapsed_seconds,
-                                len(acc),
-                                tokens_estimated,
-                                generation_time,
-                            )
+                                # Log response
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                tokens_estimated = len(acc) // 4
+                                analytics.ai_response(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    current_idx,
+                                    elapsed_seconds,
+                                    len(acc),
+                                    tokens_estimated,
+                                    generation_time,
+                                )
 
-                            sync_session_to_storage()
-                            st.rerun()
+                                sync_session_to_storage()
+                                st.rerun()
 
-                        except (APIRetryableError, APIPermanentError) as e:
-                            error_msg = OpenAIHandler.format_error_message(e)
-                            placeholder.error(error_msg)
+                            except (APIRetryableError, APIPermanentError) as e:
+                                error_msg = OpenAIHandler.format_error_message(e)
+                                placeholder.error(error_msg)
 
-                            # Remove the user message to keep state clean
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+                                # Remove the user message to keep state clean
+                                st.session_state.all_conversations[current_idx].pop()
+                                sync_session_to_storage()
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                analytics.error_occurred(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    type(e).__name__,
+                                    str(e),
+                                    elapsed_seconds,
+                                    {"context": "ai_response", "observation_idx": current_idx},
+                                )
 
-                            logger.error(f"API error in observation {current_idx}: {e}")
+                                logger.error(f"API error in observation {current_idx}: {e}")
 
-                        except Exception as e:
-                            error_msg = "Unexpected error. Please try again."
-                            placeholder.error(error_msg)
+                            except Exception as e:
+                                error_msg = "Unexpected error. Please try again."
+                                placeholder.error(error_msg)
 
-                            # Remove the user message
-                            st.session_state.all_conversations[current_idx].pop()
-                            sync_session_to_storage()
+                                # Remove the user message
+                                st.session_state.all_conversations[current_idx].pop()
+                                sync_session_to_storage()
 
-                            if st.session_state.guided_session_start is not None:
-                                elapsed_seconds = (
-                                    datetime.now() - st.session_state.guided_session_start
-                                ).total_seconds()
-                            else:
-                                elapsed_seconds = 0
-                            analytics.error_occurred(
-                                username,
-                                st.session_state.guided_session_id,
-                                type(e).__name__,
-                                str(e),
-                                elapsed_seconds,
-                                {"context": "ai_response", "observation_idx": current_idx},
-                            )
+                                if st.session_state.guided_session_start is not None:
+                                    elapsed_seconds = (
+                                        datetime.now() - st.session_state.guided_session_start
+                                    ).total_seconds()
+                                else:
+                                    elapsed_seconds = 0
+                                analytics.error_occurred(
+                                    username,
+                                    st.session_state.guided_session_id,
+                                    type(e).__name__,
+                                    str(e),
+                                    elapsed_seconds,
+                                    {"context": "ai_response", "observation_idx": current_idx},
+                                )
 
-                            logger.error(
-                                f"Unexpected error in observation {current_idx}: {e}",
-                                exc_info=True,
-                            )
+                                logger.error(
+                                    f"Unexpected error in observation {current_idx}: {e}",
+                                    exc_info=True,
+                                )
 
     else:
         # All observations done
