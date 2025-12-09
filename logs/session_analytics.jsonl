@@ -193,3 +193,5 @@
 {"timestamp": "2025-12-09T10:23:15.939973", "event_type": "session_started", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": null, "phase": "intro"}
 {"timestamp": "2025-12-09T10:23:24.147702", "event_type": "rag_load_status", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": null, "reference_loaded": true, "supporting_count": 1, "total_documents": 66, "errors": []}
 {"timestamp": "2025-12-09T10:23:26.613942", "event_type": "phase_transition", "username": "test", "session_id": "c735c64d-9925-402b-a45d-e6da70b57449", "elapsed_seconds": 0, "from_phase": "intro", "to_phase": "active", "observations_completed": 0}
+{"timestamp": "2025-12-09T10:26:08.535268", "event_type": "session_started", "username": "test", "session_id": "bc033d66-0407-490f-8b9f-584cd79247f2", "elapsed_seconds": null, "phase": "intro"}
+{"timestamp": "2025-12-09T10:26:16.607599", "event_type": "rag_load_status", "username": "test", "session_id": "bc033d66-0407-490f-8b9f-584cd79247f2", "elapsed_seconds": null, "reference_loaded": true, "supporting_count": 1, "total_documents": 66, "errors": []}
