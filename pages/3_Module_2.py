@@ -1277,7 +1277,7 @@ elif st.session_state.guided_phase == "review":
     if is_open_chat or current_idx < len(st.session_state.question_bank):
         # Display header based on mode
         if is_open_chat:
-            st.markdown("### 💬 Open Chat - Free Discussion")
+            st.markdown("### Open Chat - Free Discussion")
             st.divider()
             st.info(
                 "Start a free-form conversation about the session, observations, or anything on your mind. "
@@ -1303,8 +1303,8 @@ elif st.session_state.guided_phase == "review":
 
             st.divider()
             st.info(
-                "Use the **⏭️ Next** button to finish or return to the observation list, "
-                "or type a response to continue discussing this observation."
+                "Please type a response to continue discussing this observation, "
+                "or, use the **⏭️ Next** button to finish or return to the observation list."
             )
 
         st.divider()
@@ -1568,9 +1568,9 @@ elif st.session_state.guided_phase == "review":
 
             # Add Open Chat button for free discussion
             if st.button(
-                "💬 Open Chat - Free Discussion",
+                "Open Chat - Free Discussion",
                 use_container_width=True,
-                help="Start a free-form conversation without an observation prompt"
+                help="Start a free-form conversation to discuss anything you wish about this transcript."
             ):
                 st.session_state.current_question_idx = len(st.session_state.question_bank)
                 st.session_state.open_chat_mode = True
