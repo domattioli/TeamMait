@@ -809,7 +809,6 @@ if st.session_state.guided_phase == "intro":
 
     ### Important rules:
     - You can only move **forward** through observations (required for the experimental design)
-    - You can spend as much time as you want discussing each observation
     - In the review phase, you can go back and revisit any observation
     - All your responses are automatically saved
 
@@ -947,6 +946,10 @@ elif st.session_state.guided_phase == "active":
                 
                 elif content == "exit":
                     st.warning("Are you sure you want to exit? Type 'confirm exit' to leave.")
+
+            elif input_type == "navigation_intent":
+                # User expressed intent to move on but didn't use explicit "next"
+                st.info("To move to the next observation, please type **'next'**.")
 
             elif input_type == "probable_typo":
                 st.warning(InputParser.get_typo_warning(content, suggestion))
