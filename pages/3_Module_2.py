@@ -823,7 +823,7 @@ if st.session_state.guided_phase == "intro":
 
         if input_type == "command" and content == "next":
             st.error("Please type 'start' to begin.")
-            st.rerun()
+            # st.rerun()
         elif input_type == "command" and content == "help":
             st.info(InputParser.get_help_message())
             # st.stop()
@@ -899,7 +899,7 @@ elif st.session_state.guided_phase == "active":
                 st.error("Session time has expired. Your response could not be saved.")
                 st.session_state.guided_phase = "expired"
                 sync_session_to_storage()
-                st.rerun()
+                # st.rerun()
 
             # Parse input
             input_type, content, suggestion = InputParser.parse(
@@ -929,13 +929,13 @@ elif st.session_state.guided_phase == "active":
                     next_idx = current_idx + 1
                     if next_idx >= len(st.session_state.question_bank):
                         success, error = handle_navigation(current_idx, "review", log_event=False)
-                        if success:
-                            st.rerun()
+                        # if success:
+                            # st.rerun()
                     else:
                         success, error = handle_navigation(next_idx, "active")
-                        if success:
-                            st.rerun()
-                        else:
+                        # if success:
+                            # st.rerun()
+                        if not success:
                             st.error(f"Cannot proceed: {error}")
                 
                 elif content == "help":
