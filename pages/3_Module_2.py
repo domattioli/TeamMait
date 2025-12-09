@@ -1529,15 +1529,23 @@ elif st.session_state.guided_phase == "review":
                         st.markdown(user_input)
 
                         # Generate AI response
-                        current_q_data = st.session_state.question_bank[current_idx]
                         context = retrieve_context(user_input)
-                        system_prompt = (
-                            build_system_prompt()
-                            + f"\n\nCurrent observation:\n"
-                            f"Assertion: {current_q_data.get('assertion', '')}\n"
-                            f"Explanation: {current_q_data.get('explanation', '')}\n\n"
-                            f"Context from transcript:\n{context}"
-                        )
+                        
+                        # In open chat mode, use generic system prompt; otherwise, reference specific observation
+                        if is_open_chat:
+                            system_prompt = (
+                                build_system_prompt()
+                                + f"\n\nContext from transcript:\n{context}"
+                            )
+                        else:
+                            current_q_data = st.session_state.question_bank[current_idx]
+                            system_prompt = (
+                                build_system_prompt()
+                                + f"\n\nCurrent observation:\n"
+                                f"Assertion: {current_q_data.get('assertion', '')}\n"
+                                f"Explanation: {current_q_data.get('explanation', '')}\n\n"
+                                f"Context from transcript:\n{context}"
+                            )
 
                         with st.chat_message("assistant"):
                             placeholder = st.empty()
