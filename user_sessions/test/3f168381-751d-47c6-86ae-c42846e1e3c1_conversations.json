@@ -1,0 +1,18 @@
+{
+  "0": [
+    {
+      "role": "user",
+      "content": "hello sir",
+      "timestamp": "2025-12-09T13:43:51.164772"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?",
+      "timestamp": "2025-12-09T13:43:53.578973"
+    }
+  ],
+  "1": [],
+  "2": [],
+  "3": [],
+  "open_chat": []
+}
