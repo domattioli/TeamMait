@@ -174,3 +174,12 @@ else:
 # ---------- Footer ----------
 st.divider()
 st.caption(f"Logged in as: **{st.session_state['username']}**")
+
+
+# Preload Module 2 data in background when user is on Home page
+if st.session_state.username:
+    try:
+        from utils.module_preload import preload_all_modules
+        preload_all_modules()
+    except:
+        pass  # Preload is optional

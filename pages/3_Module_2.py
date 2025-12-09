@@ -254,7 +254,7 @@ def build_system_prompt() -> str:
         "- DO NOT provide lengthy analysis or feedback if their response is brief or non-substantive.\n"
         "- Only provide detailed analysis when the user asks a specific question or provides substantive commentary\n\n"
         "- If their response seems to be a reply in the affirmative (regarding skipping), remind them to click the 'Next' button in the side panel.\n"
-        
+
         "Only provide the detailed behavioral analysis when:\n"
         "1. The user asks a specific question about the observation\n"
         "2. The user provides detailed thoughts or comments\n"
@@ -788,12 +788,17 @@ SessionManager.update_session_activity(username, st.session_state.guided_session
 
 # Load saved conversations
 if "all_conversations" not in st.session_state:
-    saved_conversations = SessionManager.load_conversations(
-        username, st.session_state.guided_session_id
-    )
+    # Use cache if available (preloaded from Home page)
+    if "module2_conversations_cache" in st.session_state:
+        saved_conversations = st.session_state.module2_conversations_cache
+    else:
+        saved_conversations = SessionManager.load_conversations(
+            username, st.session_state.guided_session_id
+        )
     st.session_state.all_conversations = {
         int(k): v for k, v in saved_conversations.items()
     }
+
     # Initialize open chat conversation if not present
     if "open_chat" not in st.session_state.all_conversations:
         st.session_state.all_conversations["open_chat"] = []
@@ -810,7 +815,11 @@ if "current_question_idx" not in st.session_state:
     st.session_state.current_question_idx = 0
 
 if "question_bank" not in st.session_state:
-    st.session_state.question_bank = load_question_bank()
+    # Use cache if available (preloaded from Home page)
+    if "module2_questions_cache" in st.session_state:
+        st.session_state.question_bank = st.session_state.module2_questions_cache
+    else:
+        st.session_state.question_bank = load_question_bank()
 
 if "message_buffer" not in st.session_state:
     st.session_state.message_buffer = MessageBuffer()
@@ -1022,14 +1031,6 @@ with st.sidebar:
             "**Reminder:** Don't forget to check the "
             "**'Check this when done'** checkbox above when you finish!"
         )
-
-    # Control buttons
-    st.markdown("### Controls")
-    
-    # Help button (always available)
-    if st.button("ℹ️ Help", use_container_width=True, key="help_button"):
-        st.session_state["show_help"] = not st.session_state.get("show_help", False)
-        st.rerun()
     
     # Start button (only in intro phase)
     if st.session_state.guided_phase == "intro":
@@ -1117,101 +1118,107 @@ if (
     )
 
 # ==================== INTRO PHASE ====================
+def get_intro_message():
+    return """
+### Help:
+In this Module, I'll share **4 structured observations** about the therapy session.
+
+### How to use:
+1. **Read each observation**
+2. **Discuss, skip, and/or advance** - You can:
+   - Type a question or comment to discuss the observation further.
+   - Click the **⏭️ Next** button to move to the next observation.
+   - Feel free to skip observations if it does not interest you.
+3. **Review phase**
+   - After all 4 observations, you can revisit any to discuss further.
+   - You can also engage in an open-chat with TeamMait about the session.
+      - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
+4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
+
+### Important rules:
+- You can only move **forward** through observations.
+- In the review phase, you can go back and revisit any observation.
+
+**Ready to begin?** Click the **▶️ Start** button in the sidebar.
+"""
 
 if st.session_state.guided_phase == "intro":
     # Store that intro has been shown to preserve content
     if "intro_shown" not in st.session_state:
         st.session_state.intro_shown = True
     
-    st.markdown(
-        """
-    ## Welcome to Module 2
-
-    In this phase, I'll share **4 structured observations** about the therapy session.
-
-    ### How to use:
-    1. **Read each observation**
-    2. **Discuss, skip, and/or advance** - You can:
-       - Type a question or comment to discuss the observation further.
-       - Click the **⏭️ Next** button to move to the next observation.
-       - Feel free to skip observations if it does not interest you.
-    3. **Review phase**
-        - After all 4 observations, you can revisit any to discuss further.
-        - You can also engage in an open-chat with TeamMait about the session.
-            - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
-    4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
+    st.markdown( get_intro_message(), unsafe_allow_html=True )
     
-
-    ### Important rules:
-    - You can only move **forward** through observations.
-    - In the review phase, you can go back and revisit any observation.
-
-    **Ready to begin?** Click the **▶️ Start** button in the sidebar.
-    """,
-        unsafe_allow_html=True,
-    )
-    
-    # Show help if requested
-    if st.session_state.get("show_help", False):
-        st.info(InputParser.get_help_message())
-        st.session_state["show_help"] = False
-
 elif st.session_state.guided_phase == "active":
+    # reprint the intro
+    st.markdown( get_intro_message(), unsafe_allow_html=True )
+
+    # Show all COMPLETED observations first (with their conversations)
+    for obs_idx in range(st.session_state.current_question_idx):
+        obs = st.session_state.question_bank[obs_idx]
+        
+        st.divider()
+
+        st.markdown(f"### Observation {obs_idx + 1} of 4 (Completed):")
+        
+        with st.container(border=True):
+            render_feedback_item(obs)
+                
+        # Show all messages for this completed observation
+        for msg in st.session_state.all_conversations[obs_idx]:
+            timestamp = msg.get("timestamp", "")
+            time_str = ""
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    pass
+            
+            with st.chat_message(msg["role"]):
+                if time_str:
+                    st.caption(f"_{time_str}_")
+                st.markdown(msg["content"])
+        
+    
+    # Now show the CURRENT observation
     if st.session_state.current_question_idx < len(st.session_state.question_bank):
         current_q = st.session_state.question_bank[
             st.session_state.current_question_idx
         ]
         current_idx = st.session_state.current_question_idx
 
-        # Show observation header
-        st.markdown(f"### Observation {current_idx + 1} of 4")
         st.divider()
 
-        # Show the observation with structured feedback item rendering
+        st.markdown(f"### Observation {current_idx + 1} of 4:")
+
         with st.container(border=True):
             render_feedback_item(current_q)
 
-        st.divider()
         st.info(
             "Type a response to discuss this item, "
-            "or use the **⏭️ Next** button to move to the next one." \
+            "or use the **⏭️ Next** button to move to the next one."
         )
-        st.divider()
 
-        # Display all observations and their conversations
-        for obs_idx in range(current_idx + 1):
-            obs = st.session_state.question_bank[obs_idx]
+        # Display conversation history for current observation
+        for msg in st.session_state.all_conversations[current_idx]:
+            timestamp = msg.get("timestamp", "")
+            time_str = ""
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M")
+                except:
+                    pass
             
-            # Show observation header
-            st.divider()
-            st.markdown(f"#### Observation {obs_idx + 1}")
-            
-            # Show the observation prompt
-            with st.container(border=True):
-                render_feedback_item(obs)
-            
-            st.markdown("###### Feel free to discuss or skip this observation below.")
-            
-            # Display conversation history for this observation
-            if st.session_state.all_conversations[obs_idx]:
-                for msg in st.session_state.all_conversations[obs_idx]:
-                    timestamp = msg.get("timestamp", "")
-                    time_str = ""
-                    if timestamp:
-                        try:
-                            dt = datetime.fromisoformat(timestamp)
-                            time_str = dt.strftime("%H:%M")
-                        except:
-                            pass
-                    
-                    with st.chat_message(msg["role"]):
-                        if time_str:
-                            st.caption(f"_{time_str}_")
-                        st.markdown(msg["content"])
-            
-        # User input - always for the current (last) observation
+            with st.chat_message(msg["role"]):
+                if time_str:
+                    st.caption(f"_{time_str}_")
+                st.markdown(msg["content"])
+        
+        # User input
         user_input = st.chat_input("Your response or question...")
-
+        
         if user_input:
             # Check if time expired while user was typing
             if time_expired:

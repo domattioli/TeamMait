@@ -1,0 +1,29 @@
+{
+  "0": [
+    {
+      "role": "user",
+      "content": "test",
+      "timestamp": "2025-12-09T15:26:14.941926"
+    },
+    {
+      "role": "assistant",
+      "content": "Do you have any thoughts to share, or would you prefer to skip to the next step?",
+      "timestamp": "2025-12-09T15:26:17.138152"
+    }
+  ],
+  "1": [
+    {
+      "role": "user",
+      "content": "hellp",
+      "timestamp": "2025-12-09T15:26:25.278251"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! Do you have any thoughts to share, or would you like to skip to the next step?",
+      "timestamp": "2025-12-09T15:26:26.455442"
+    }
+  ],
+  "2": [],
+  "3": [],
+  "open_chat": []
+}
