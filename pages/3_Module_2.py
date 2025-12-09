@@ -1126,20 +1126,16 @@ In this Module, I'll share **4 structured observations** about the therapy sessi
 ### How to use:
 1. **Read each observation**
 2. **Discuss, skip, and/or advance** - You can:
+   - Take time to read the transcript, if you wish.
    - Type a question or comment to discuss the observation further.
    - Click the **⏭️ Next** button to move to the next observation.
    - Feel free to skip observations if it does not interest you.
 3. **Review phase**
-   - After all 4 observations, you can revisit any to discuss further.
-   - You can also engage in an open-chat with TeamMait about the session.
-      - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
+   - If there is time remaining once you engage with all 4 observations, you can open-chat with TeamMait about the session.
 4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
 
-### Important rules:
+### Note:
 - You can only move **forward** through observations.
-- In the review phase, you can go back and revisit any observation.
-
-**Ready to begin?** Click the **▶️ Start** button in the sidebar.
 """
 
 if st.session_state.guided_phase == "intro":
@@ -1148,6 +1144,9 @@ if st.session_state.guided_phase == "intro":
         st.session_state.intro_shown = True
     
     st.markdown( get_intro_message(), unsafe_allow_html=True )
+    st.info(
+            "**Ready to begin?** Click the **▶️ Start** button in the side panel."
+        )
     
 elif st.session_state.guided_phase == "active":
     # reprint the intro
@@ -1417,7 +1416,7 @@ elif st.session_state.guided_phase == "expired":
     
     All your messages below are preserved and will be included in your results.
     
-    ### One More Chance
+    ### Final Thoughts
     
     You can share **final thoughts** below for a brief synthesis from TeamMait.
     
@@ -1560,62 +1559,53 @@ elif st.session_state.guided_phase == "expired":
 # ==================== REVIEW PHASE ====================
 
 elif st.session_state.guided_phase == "review":
-    reviewed = min(
-        st.session_state.current_question_idx,
-        len(st.session_state.question_bank),
-    )
-
-    # Determine which conversation to use
-    if st.session_state.open_chat_mode:
-        current_idx = "open_chat"
-        is_open_chat = True
+    # Automatically skip to open chat mode if there's time, or finish if time expired
+    if time_expired or remaining.total_seconds() <= 0:
+        # Time expired - go straight to complete phase
+        st.error("### Session Time Expired")
+        st.markdown("Thank you for completing all observations. The module is now complete.")
+        
+        if st.button("Finish Module", type="primary", use_container_width=True):
+            st.session_state.guided_phase = "complete"
+            sync_session_to_storage()
+            st.rerun()
     else:
-        current_idx = st.session_state.current_question_idx
-        is_open_chat = False
-
-    # Check if viewing a specific observation or just the list
-    if is_open_chat or current_idx < len(st.session_state.question_bank):
-        # Display header based on mode
-        if is_open_chat:
-            st.markdown("### Open Chat - Free Discussion")
-            st.divider()
-            
-            # Generate and display summary of key points from observations
+        # Time remaining - go straight to open chat
+        if not st.session_state.open_chat_mode:
+            st.session_state.open_chat_mode = True
+            # Generate summary on first arrival
             if "observations_summary_generated" not in st.session_state:
                 summary = generate_observations_summary(st.session_state.all_conversations, client)
                 if summary:
                     st.session_state.observations_summary = summary
                     st.session_state.observations_summary_generated = True
-            
-            # Display the summary if it exists
-            if st.session_state.get("observations_summary"):
-                st.markdown("**Key Points from Your Observations:**")
-                st.markdown(st.session_state.observations_summary)
-                st.divider()
-            
-            st.info(
-                "Start a free-form conversation about the transcript, view a summary of key points from your prior conversations. "
-                "Use the **← Back to Observations** button to return to the observation list."
-            )
-        else:
-            current_q = st.session_state.question_bank[current_idx]
-
-            # Show observation header
-            st.markdown(f"### Observation {current_idx + 1} of 4 (Review Mode)")
-            st.divider()
-
-            # Show the observation with structured feedback item rendering
-            with st.container(border=True):
-                render_feedback_item(current_q)
-
-            st.divider()
-            st.info(
-                "Please type a response to continue discussing this observation, "
-                "or, use the **⏭️ Next** button to finish or return to the observation list."
-            )
-
+            st.rerun()
+        
+        # Open chat mode - always shown in review phase with time remaining
+        current_idx = "open_chat"
+        is_open_chat = True
+        
+        st.markdown("### Continuing the Conversation")
         st.divider()
-
+        
+        # Display summary and key takeaways
+        if st.session_state.get("observations_summary"):
+            st.markdown("**Key Takeaways from Your Discussion:**")
+            st.markdown(st.session_state.observations_summary)
+            st.divider()
+        
+        # Prompt for continued discussion
+        remaining_time_sec = max(0, int(remaining.total_seconds()))
+        remaining_min = remaining_time_sec // 60
+        remaining_sec = remaining_time_sec % 60
+        
+        st.info(
+            f"You have **{remaining_min}:{remaining_sec:02d}** remaining. "
+            "Feel free to discuss any other aspects of the session, ask questions, or share additional thoughts."
+        )
+        
+        st.divider()
+        
         # Display conversation history WITH TIMESTAMPS
         for msg in st.session_state.all_conversations[current_idx]:
             timestamp = msg.get("timestamp", "")
@@ -1631,21 +1621,16 @@ elif st.session_state.guided_phase == "review":
                 if time_str:
                     st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
-
+        
         # User input
         user_input = st.chat_input("Your response or question...")
-
+        
         if user_input:
             # Check if time expired while user was typing
             if time_expired:
                 st.error("Session time has expired. Your response could not be saved.")
                 st.session_state.guided_phase = "expired"
                 sync_session_to_storage()
-                # st.rerun()
-
-            # Check for navigation intent first
-            if InputParser.detect_navigation_intent(user_input):
-                st.info(InputParser.get_navigation_redirect_message())
             else:
                 # Log user message - handle None start time
                 if st.session_state.guided_session_start is None:
@@ -1663,233 +1648,149 @@ elif st.session_state.guided_phase == "review":
                     len(user_input),
                     "message",
                 )
-
+                
                 # Check for duplicates
                 if not st.session_state.message_buffer.add_message(user_input):
                     st.warning("That looks like the same message. Please type something new.")
                 else:
                     # Add to history WITH TIMESTAMP
-                    # Immediately add a placeholder assistant message showing "Thinking..."
                     st.session_state.all_conversations[current_idx].append(
                         {
-                            "role": "assistant",
-                            "content": "*Thinking...*",
+                            "role": "user",
+                            "content": user_input,
                             "timestamp": datetime.now().isoformat()
                         }
                     )
                     
-                    sync_session_to_storage()
-                    st.rerun()  # Rerun to display both messages immediately
-
-
-# Continue processing for review/open chat if we have a thinking message
-if st.session_state.guided_phase == "review" and st.session_state.all_conversations[current_idx]:
-    if st.session_state.all_conversations[current_idx][-1]["content"] == "*Thinking...*":
-        # Get the user message (it's the one before thinking)
-        user_input = st.session_state.all_conversations[current_idx][-2]["content"] if len(st.session_state.all_conversations[current_idx]) > 1 else ""
-        
-        # Generate AI response to replace the thinking message
-        context = retrieve_context(user_input)
-        
-        # In open chat mode, use generic system prompt; otherwise, reference specific observation
-        if is_open_chat:
-            system_prompt = (
-                build_system_prompt()
-                + f"\n\nContext from transcript:\n{context}"
-            )
-        else:
-            current_q_data = st.session_state.question_bank[current_idx]
-            observation = current_q_data.get('summary', '')
-            system_prompt = (
-                build_system_prompt()
-                + f"\n\nFocus area:\n{observation}\n\n"
-                f"Context from transcript:\n{context}"
-            )
-
-        try:
-            # Generate response
-            acc = ""
-            start_time = time.time()
-
-            response_gen = OpenAIHandler.openai_complete(
-                history=st.session_state.all_conversations[current_idx],
-                system_text=system_prompt,
-                client=client,
-                stream=True,
-                max_tokens=512,
-                max_retries=2,
-                timeout=30,
-            )
-
-            for chunk in response_gen:
-                acc += chunk
-
-            generation_time = time.time() - start_time
-
-            # Replace the thinking message with the actual response
-            st.session_state.all_conversations[current_idx][-1] = {
-                "role": "assistant",
-                "content": acc.strip(),
-                "timestamp": datetime.now().isoformat()
-            }
-
-            # Log response
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            tokens_estimated = len(acc) // 4
-            analytics.ai_response(
-                username,
-                st.session_state.guided_session_id,
-                current_idx,
-                elapsed_seconds,
-                len(acc),
-                tokens_estimated,
-                generation_time,
-            )
-
-            sync_session_to_storage()
-            # Don't rerun - let message display on next timer tick
-
-        except (APIRetryableError, APIPermanentError) as e:
-            error_msg = OpenAIHandler.format_error_message(e)
-            st.error(error_msg)
-
-            # Remove both user and thinking messages on error
-            st.session_state.all_conversations[current_idx].pop()
-            st.session_state.all_conversations[current_idx].pop()
-            sync_session_to_storage()
-
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            analytics.error_occurred(
-                username,
-                st.session_state.guided_session_id,
-                type(e).__name__,
-                str(e),
-                elapsed_seconds,
-                {"context": "ai_response", "observation_idx": current_idx},
-            )
-
-            logger.error(f"API error in observation {current_idx}: {e}")
-
-        except Exception as e:
-            error_msg = "Unexpected error. Please try again."
-            st.error(error_msg)
-
-            # Remove both user and thinking messages on error
-            st.session_state.all_conversations[current_idx].pop()
-            st.session_state.all_conversations[current_idx].pop()
-            sync_session_to_storage()
-
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            analytics.error_occurred(
-                username,
-                st.session_state.guided_session_id,
-                type(e).__name__,
-                str(e),
-                elapsed_seconds,
-                {"context": "ai_response", "observation_idx": current_idx},
-            )
-
-            logger.error(
-                f"Unexpected error in observation {current_idx}: {e}",
-                exc_info=True,
-            )
-        
-        # Back button to return to Review or Open Chat
-        if is_open_chat:
-            back_button_label = "← Back to Review"
-        else:
-            back_button_label = "← Review"
-        
-        if st.button(back_button_label, use_container_width=True):
-            if is_open_chat:
-                st.session_state.open_chat_mode = False
-            st.session_state.current_question_idx = len(st.session_state.question_bank)
-            st.rerun()
-
-    else:
-        # Show observation list
-        st.success(f"### You've completed all observations!")
-        
-        remaining_time_sec = max(0, int(remaining.total_seconds()))
-        if remaining_time_sec > 0:
-            remaining_min = remaining_time_sec // 60
-            remaining_sec = remaining_time_sec % 60
-            st.markdown(f"**Observations reviewed:** {reviewed} / 4")
-            st.markdown(f"**Time remaining:** {remaining_min}:{remaining_sec:02d}")
-            st.markdown(
-        "Would you like to revisit any of the prior observations to discuss further? You may also open a free-form chat, or end the module."
-            )
-        else:
-            st.warning("Your session time has expired.")
-            st.markdown("Please proceed to finish.")
-
-        st.divider()
-
-        if time_expired or remaining_time_sec <= 0:
-            if st.button(
-                "Finish Module",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state.guided_phase = "complete"
-                sync_session_to_storage()
-                st.rerun()
-        else:
-            st.markdown("### Revisit observations:")
-            cols = st.columns(4)
-
-            for i in range(min(4, len(st.session_state.question_bank))):
-                with cols[i]:
-                    # Get label from question bank, fallback to "Observation N"
-                    obs_label = st.session_state.question_bank[i].get("label", f"Observation {i + 1}")
-                    if st.button(obs_label, use_container_width=True, key=f"revisit_{i}"):
-                        success, error = handle_navigation(i, "review", log_event=False)
-                        if success:
-                            # Calculate elapsed time safely
+                    with st.chat_message("user"):
+                        st.caption(f"_{datetime.now().strftime('%H:%M')}_")
+                        st.markdown(user_input)
+                    
+                    # Generate AI response
+                    context = retrieve_context(user_input)
+                    system_prompt = (
+                        build_system_prompt()
+                        + f"\n\nContext from transcript:\n{context}"
+                    )
+                    
+                    with st.chat_message("assistant"):
+                        placeholder = st.empty()
+                        placeholder.markdown("*Thinking...*")
+                        
+                        try:
+                            # Generate response
+                            acc = ""
+                            start_time = time.time()
+                            first_chunk = True
+                            
+                            response_gen = OpenAIHandler.openai_complete(
+                                history=st.session_state.all_conversations[current_idx],
+                                system_text=system_prompt,
+                                client=client,
+                                stream=True,
+                                max_tokens=512,
+                                max_retries=2,
+                                timeout=30,
+                            )
+                            
+                            for chunk in response_gen:
+                                if first_chunk:
+                                    placeholder.empty()
+                                    first_chunk = False
+                                
+                                acc += chunk
+                                placeholder.markdown(acc.lstrip())
+                            
+                            generation_time = time.time() - start_time
+                            
+                            # Save to history WITH TIMESTAMP
+                            st.session_state.all_conversations[current_idx].append(
+                                {
+                                    "role": "assistant",
+                                    "content": acc.strip(),
+                                    "timestamp": datetime.now().isoformat()
+                                }
+                            )
+                            
+                            # Log response
                             if st.session_state.guided_session_start is not None:
-                                elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
                             else:
-                                elapsed = 0
-                            analytics.observation_revisited(
+                                elapsed_seconds = 0
+                            tokens_estimated = len(acc) // 4
+                            analytics.ai_response(
                                 username,
                                 st.session_state.guided_session_id,
-                                st.session_state.current_question_idx,
-                                i,
-                                elapsed,
+                                current_idx,
+                                elapsed_seconds,
+                                len(acc),
+                                tokens_estimated,
+                                generation_time,
                             )
+                            
+                            sync_session_to_storage()
                             st.rerun()
-
-            st.divider()
-
-            # Add Open Chat button for free discussion
+                        
+                        except (APIRetryableError, APIPermanentError) as e:
+                            error_msg = OpenAIHandler.format_error_message(e)
+                            placeholder.error(error_msg)
+                            
+                            # Remove the user message to keep state clean
+                            st.session_state.all_conversations[current_idx].pop()
+                            sync_session_to_storage()
+                            
+                            if st.session_state.guided_session_start is not None:
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            analytics.error_occurred(
+                                username,
+                                st.session_state.guided_session_id,
+                                type(e).__name__,
+                                str(e),
+                                elapsed_seconds,
+                                {"context": "ai_response", "observation_idx": current_idx},
+                            )
+                            
+                            logger.error(f"API error in open chat: {e}")
+                        
+                        except Exception as e:
+                            error_msg = "Unexpected error. Please try again."
+                            placeholder.error(error_msg)
+                            
+                            # Remove the user message
+                            st.session_state.all_conversations[current_idx].pop()
+                            sync_session_to_storage()
+                            
+                            if st.session_state.guided_session_start is not None:
+                                elapsed_seconds = (
+                                    datetime.now() - st.session_state.guided_session_start
+                                ).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            analytics.error_occurred(
+                                username,
+                                st.session_state.guided_session_id,
+                                type(e).__name__,
+                                str(e),
+                                elapsed_seconds,
+                                {"context": "ai_response", "observation_idx": current_idx},
+                            )
+                            
+                            logger.error(
+                                f"Unexpected error in open chat: {e}",
+                                exc_info=True,
+                            )
+        
+        # Option to finish when time is running low
+        st.divider()
+        if remaining.total_seconds() < 120:  # Show finish button when less than 2 min left
             if st.button(
-                "Open Chat - Free Discussion",
-                use_container_width=True,
-                help="Start a free-form conversation to discuss anything you wish about this transcript."
-            ):
-                st.session_state.current_question_idx = len(st.session_state.question_bank)
-                st.session_state.open_chat_mode = True
-                st.rerun()
-
-            st.divider()
-
-            if st.button(
-                "Finish and Continue to Next Step",
+                "Finish Module",
                 type="primary",
                 use_container_width=True,
             ):
@@ -1950,7 +1851,7 @@ elif st.session_state.guided_phase == "complete":
 
 # ==================== AUTO-RERUN TIMER ====================
 # Rerun every second if timer is active to keep it updating
-if st.session_state.timer_started and st.session_state.guided_session_start is not None:
+if st.session_state.timer_started and st.session_state.guided_session_start is not None and st.session_state.guided_phase == "active":
     elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
     remaining_time = COUNTDOWN_DURATION_SECONDS - elapsed
     if 0 < remaining_time <= COUNTDOWN_DURATION_SECONDS:
