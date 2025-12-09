@@ -67,28 +67,32 @@ st.title("TeamMait: Therapy Transcript Review Assistant")
 st.markdown("""
 ## Welcome!
 
-You are participating as an expert clinician evaluator in this research study. TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript. This tool provides two modes of interaction to help you evaluate therapist performance in PE (Prolonged Exposure) therapy sessions.
-
-**Please begin by reading the therapy session transcript, which you'll find in the sidebar of each interaction page.**
+- TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
+- You will be **role-playing as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
 
 ### Instructions
+- For each of the two modules you can find a transcript between a unique therapist and their unique patient in the left side panel of that page.**
 
 #### Module 1
-- **Interactive Review**: Ask TeamMait any questions about the therapy transcript, therapist behavior, or therapy processes
-- **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts
-- **Flexible Approach**: Use TeamMait however feels natural for your evaluation process
-- **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
+- Ask TeamMait any questions about the therapy transcript, therapist behavior,  demonstratic clinical skill, or therapuetic process.
+- **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts.
+- Use TeamMait however feels natural for your evaluation process
+- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
+- This should take approximately 15-20 minutes.
 
 #### Qualtrics Survey
-A brief survey about your experience will follow this phase.
+- Complete a survey about your experience in the field and with TeamMait Module 1.
+- This should take approximately 5 minutes.
             
 #### Module 2  
-- **Structured Observations**: TeamMait will share prepared observations about notable aspects of the transcript
-- **Natural Flow**: Progress through observations at your own pace, with options to explore topics further depth or breadth, or to discuss related topics.
-- **Evidence Available**: Feel free to request justification or supporting evidence for any observation, with specific transcript references
+- TeamMait will share prepared observations about notable aspects of the transcript.
+- Progress through observations at your own pace, with options to explore topics further depth or breadth.
+- Again, feel free to requiest supporting evidence for anything TeamMait offers to you.
+- This should take approximately 20-25 minutes.
             
 #### Qualitative Interview
-When both modules and the survey have been completed, we will move on to a brief qualitative interview lasting no more than 10 minutes.
+- Complete a brief interview with the proctor to examine your mindset during Module 2.
+- This should take approximately 10 minutes.
 ---
 
 ---
@@ -96,29 +100,20 @@ When both modules and the survey have been completed, we will move on to a brief
 # Research Consent & Privacy Notice
 
 #### Study Purpose
-This research study investigates how artificial intelligence can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
-
-#### What You Will Do
-- **Review Process**: You will interact with TeamMait while reviewing an anonymized therapy session transcript
-- **Two Interaction Phases**: Participate in both open-ended chat and guided observation discussions
-- **Brief Surveys**: Complete short questionnaires about your experience
-- **Your Role**: Serve as an expert evaluator of therapist performance and AI-assisted supervision tools
+This research study investigates how AI can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
 
 #### Data Collection & Privacy
-- **Interaction Logging**: All conversations with TeamMait are recorded for research analysis
-- **Anonymization**: Your identity will be removed from all data used in research publications or presentations
-- **Data Security**: All data is stored securely and will only be accessed by authorized research personnel
-- **No Clinical Information**: You will not share any personal client information during this study
-- **No Identifying Information**: Please do not include identifying information in your responses or discussions
+- All conversations with TeamMait are recorded via Zoom for research analysis. Transcripts of your conversations with TeamMait, and your survey and interview answers, will be saved and anonymized..
+- Your identity will be removed from all data used in research publications or presentations. Zoom recordings will be deleted after the collected transcripts of your conversations with TeamMait have been verified and stored securely.
+- All data is stored securely on Penn State University servers and will only be accessed by authorized research personnel.
+- No clinical information will be shared during this study.
+- Please do not include identifying information about yourself or others in your responses or discussions.
 
 #### Your Rights
-- **Voluntary Participation**: Your participation is completely voluntary
-- **Right to Withdraw**: You may discontinue participation at any time without explanation or penalty
-- **Questions Welcome**: You may ask questions about the study at any point
-- **No Direct Benefits**: While there are no direct benefits to you, your participation contributes to advancing clinical training tools
-
-#### Professional Context
-This study is designed for licensed mental health professionals with expertise in Prolonged Exposure (PE) therapy. Your clinical knowledge and experience are valuable for evaluating AI-assisted supervision tools.
+- Your participation is completely voluntary
+- You may discontinue participation at any time without explanation or penalty
+- You may ask questions about the study at any point
+- While there are no direct benefits to you, your participation contributes to advancing clinical training tools
 
 #### Contact Information
 If you have questions about this research study, please contact the research team through your institutional channels.
@@ -127,7 +122,7 @@ If you have questions about this research study, please contact the research tea
 st.markdown("""
 ---
 
-**By checking the consent box below, you acknowledge that you have read and understood this information and agree to participate in this research study.**
+**By checking the consent box, you acknowledge that you have read and understood this information and agree to participate in this research study.**
 """)
 
 # Initialize completion status if it doesn't exist
