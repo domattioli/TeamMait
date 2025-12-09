@@ -1,0 +1,11 @@
+{
+  "session_id": "a286ea37-2079-4b83-9e5a-ca12cf1fd5d0",
+  "username": "test",
+  "created_at": "2025-12-09T07:30:32.074053",
+  "last_activity": "2025-12-09T07:30:32.075282",
+  "phase": "intro",
+  "current_question_idx": 0,
+  "total_messages": 0,
+  "status": "active",
+  "observations_visited": []
+}
