@@ -893,26 +893,19 @@ with st.sidebar:
         ref_conversation = load_reference_conversation()
         if ref_conversation:
             for i, turn in enumerate(ref_conversation, 1):
-                # Display line number
-                st.markdown(f"[Line {i}]", unsafe_allow_html=True)
-                
-                # Display turn with appropriate formatting
-                is_therapist = turn.strip().startswith("Therapist:")
-                is_client = turn.strip().startswith("Client:")
-                
-                if is_therapist:
-                    # Extract speaker and content
-                    content = turn.replace("Therapist:", "", 1).strip()
-                    st.markdown(f"<div style='text-align: right;'>***Therapist: {content}***</div>", unsafe_allow_html=True)
-                elif is_client:
-                    # Extract speaker and content  
-                    content = turn.replace("Client:", "", 1).strip()
-                    st.markdown(f"**Client:** {content}")
+                line_num = i  # 1-indexed line numbers
+                is_client = turn.strip().startswith("Client: ")
+                if is_client:
+                    # Right-justify client's messages with custom CSS
+                    st.markdown(f"""
+                    <div style="text-align: right; margin-left: 0%; padding: 10px; border-radius: 10px;">
+                    <small style="color: #888; font-size: 0.8em;">[Line {line_num}]</small><br>
+                    {turn}
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.markdown(turn)
-                
-                # Add spacing between turns
-                st.markdown("")
+                    # Italicize therapist's messages, but keep line numbers unbolded
+                    st.markdown(f"<div style='font-weight:600; font-size:1.08em; margin: 10px 0;'><small style='color: #888; font-size: 0.8em; font-weight: normal;'>[Line {line_num}]</small><br><em>{turn}</em></div>", unsafe_allow_html=True)
         else:
             st.warning("Reference conversation not loaded")
 
