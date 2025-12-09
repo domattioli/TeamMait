@@ -750,7 +750,7 @@ with st.sidebar:
     st.metric("Observations", f"{st.session_state.current_question_idx} / 4")
 
     # Show reference conversation
-    with st.expander("Reference Conversation", expanded=False):
+    with st.expander("Reference Conversation", expanded=True):
         ref_conversation = load_reference_conversation()
         if ref_conversation:
             for i, turn in enumerate(ref_conversation, 1):
