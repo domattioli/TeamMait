@@ -514,10 +514,10 @@ def render_feedback_item(item: Dict) -> None:
         st.markdown("**Observation:**")
         st.markdown(observation)
     
-    # Justification (optional, shown as Rationale) - BEFORE Evidence
+    # Justification (optional, shown as Assessment) - BEFORE Evidence
     justification = item.get("justification", "").strip()
     if justification:
-        st.markdown(f"**Rationale:** {justification}")
+        st.markdown(f"**Assessment:** {justification}")
     
     # Evidence (optional, as bullet points)
     evidence = item.get("evidence", [])
@@ -1443,7 +1443,7 @@ elif st.session_state.guided_phase == "review":
                 st.divider()
             
             st.info(
-                "Start a free-form conversation about the session, observations, or anything else related to this transcript. "
+                "Start a free-form conversation about the transcript, view a summary of key points from your prior conversations. "
                 "Use the **← Back to Observations** button to return to the observation list."
             )
         else:
