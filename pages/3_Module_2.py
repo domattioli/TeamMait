@@ -153,10 +153,10 @@ def build_system_prompt() -> str:
         "Be succinct and academically neutral; do not use emojis. "
         "Never invent facts. Always cite specific line references when making claims about the transcript. "
         "Engage conversationally and provide thoughtful analysis. Avoid repetitive phrases. "
+        "If you areAvoid providing extraneous details unless prompted by the user."
         "Provide substantive answers, not just questions.\n\n"
         "RESPONSE FORMAT:\n"
-        "- Keep responses concise (aim for 1-2 paragraphs maximum, or 3-5 bullet points).\n"
-        "- Use bullet points liberally to organize key ideas and observations.\n"
+        "- Keep responses concise (aim for 3-5 bullet points, unless otherwise specified by the user).\n"
         "- Prioritize clarity and brevity over comprehensive explanations.\n"
         "- Only expand responses if the user explicitly asks for more detail."
     )
@@ -1011,7 +1011,7 @@ if st.session_state.guided_phase == "intro":
         - After all 4 observations, you can revisit any to discuss further
         - You can also engage in an open-chat with TeamMait about the session.
             - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
-    4. **Time limit** - You have **20 minutes total** for the entire session
+    4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session
     
 
     ### Important rules:
@@ -1019,7 +1019,8 @@ if st.session_state.guided_phase == "intro":
     - In the review phase, you can go back and revisit any observation
 
     **Ready to begin?** Click the **▶️ Start** button in the sidebar.
-    """
+    """,
+        unsafe_allow_html=True,
     )
     
     # Show help if requested
@@ -1124,10 +1125,7 @@ elif st.session_state.guided_phase == "active":
 
                         with st.chat_message("assistant"):
                             placeholder = st.empty()
-
-                            # Show loading state
-                            with placeholder.container():
-                                st.markdown("*Thinking...*")
+                            placeholder.markdown("*Thinking...*")
 
                             try:
                                 # Generate response
@@ -1320,11 +1318,9 @@ elif st.session_state.guided_phase == "expired":
         # Generate synthesis (NOT summary)
         with st.chat_message("assistant"):
             placeholder = st.empty()
+            placeholder.markdown("*Synthesizing your insights...*")
             
             try:
-                with placeholder.container():
-                    st.markdown("*Synthesizing your insights...*")
-                
                 system_prompt = (
                     build_system_prompt()
                     + "\n\n"
@@ -1547,10 +1543,7 @@ elif st.session_state.guided_phase == "review":
 
                         with st.chat_message("assistant"):
                             placeholder = st.empty()
-
-                            # Show loading state
-                            with placeholder.container():
-                                st.markdown("*Thinking...*")
+                            placeholder.markdown("*Thinking...*")
 
                             try:
                                 # Generate response
