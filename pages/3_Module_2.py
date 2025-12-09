@@ -783,6 +783,11 @@ if "all_conversations" not in st.session_state:
     # Initialize open chat conversation if not present
     if "open_chat" not in st.session_state.all_conversations:
         st.session_state.all_conversations["open_chat"] = []
+    
+    # Ensure all observations have a conversation list (even if empty)
+    for i in range(len(load_question_bank())):
+        if i not in st.session_state.all_conversations:
+            st.session_state.all_conversations[i] = []
 
 if "guided_phase" not in st.session_state:
     st.session_state.guided_phase = "intro"
@@ -1159,23 +1164,38 @@ elif st.session_state.guided_phase == "active":
         )
         st.divider()
 
-        # Display conversation history for this observation WITH TIMESTAMPS
-        for msg in st.session_state.all_conversations[current_idx]:
-            timestamp = msg.get("timestamp", "")
-            time_str = ""
-            if timestamp:
-                try:
-                    dt = datetime.fromisoformat(timestamp)
-                    time_str = dt.strftime("%H:%M")
-                except:
-                    pass
+        # Display all observations and their conversations
+        for obs_idx in range(current_idx + 1):
+            obs = st.session_state.question_bank[obs_idx]
             
-            with st.chat_message(msg["role"]):
-                if time_str:
-                    st.caption(f"_{time_str}_")
-                st.markdown(msg["content"])
-
-        # User input
+            # Show observation header
+            st.divider()
+            st.markdown(f"#### Observation {obs_idx + 1}")
+            
+            # Show the observation prompt
+            with st.container(border=True):
+                render_feedback_item(obs)
+            
+            st.markdown("##### Feel free to discuss or skip this observation:")
+            
+            # Display conversation history for this observation
+            if st.session_state.all_conversations[obs_idx]:
+                for msg in st.session_state.all_conversations[obs_idx]:
+                    timestamp = msg.get("timestamp", "")
+                    time_str = ""
+                    if timestamp:
+                        try:
+                            dt = datetime.fromisoformat(timestamp)
+                            time_str = dt.strftime("%H:%M")
+                        except:
+                            pass
+                    
+                    with st.chat_message(msg["role"]):
+                        if time_str:
+                            st.caption(f"_{time_str}_")
+                        st.markdown(msg["content"])
+            
+        # User input - always for the current (last) observation
         user_input = st.chat_input("Your response or question...")
 
         if user_input:

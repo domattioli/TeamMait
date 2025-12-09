@@ -1,0 +1,28 @@
+{
+  "0": [
+    {
+      "role": "user",
+      "content": "hi",
+      "timestamp": "2025-12-09T14:14:02.874590"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today? If you have any questions or need feedback on a transcript, feel free to share!",
+      "timestamp": "2025-12-09T14:14:04.599248"
+    },
+    {
+      "role": "user",
+      "content": "hello",
+      "timestamp": "2025-12-09T14:14:07.999298"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi again! If there's something specific you'd like to discuss or if you have a transcript you'd like me to review, just let me know!",
+      "timestamp": "2025-12-09T14:14:09.385749"
+    }
+  ],
+  "1": [],
+  "2": [],
+  "3": [],
+  "open_chat": []
+}
