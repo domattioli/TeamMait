@@ -271,6 +271,7 @@ with st.sidebar:
         return documents
 
     rag_documents = load_rag_documents()
+    
     # Show only the reference conversation in the expander
     ref_conversation = []
     ref_path = os.path.join("doc/RAG", "116_P8_conversation.json")
