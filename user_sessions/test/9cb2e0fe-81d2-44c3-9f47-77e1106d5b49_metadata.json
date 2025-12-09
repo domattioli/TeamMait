@@ -1,0 +1,17 @@
+{
+  "session_id": "9cb2e0fe-81d2-44c3-9f47-77e1106d5b49",
+  "username": "test",
+  "created_at": "2025-12-05T12:55:11.532220",
+  "last_activity": "2025-12-05T13:16:49.866959",
+  "phase": "complete",
+  "current_question_idx": 0,
+  "total_messages": 22,
+  "status": "completed",
+  "observations_visited": [],
+  "completed_at": "2025-12-05T13:16:49.874077",
+  "final_state": {
+    "observations_reviewed": 0,
+    "total_messages": 22,
+    "elapsed_seconds": 1298.339964
+  }
+}
