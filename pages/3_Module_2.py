@@ -538,6 +538,52 @@ def render_feedback_item(item: Dict) -> None:
         st.markdown(f"**Suggestion:** {suggestion}")
 
 
+def generate_observations_summary(conversations: Dict, client: any) -> str:
+    """Generate a bulleted summary of key points from all four observation discussions."""
+    try:
+        # Collect all messages from the four observations
+        all_messages = []
+        for i in range(4):
+            if i in conversations and conversations[i]:
+                all_messages.extend(conversations[i])
+        
+        if not all_messages:
+            return ""
+        
+        # Create a summary request
+        summary_prompt = (
+            "Based on the discussion below, create a concise bulleted summary of the most important points, "
+            "conclusions, and insights that emerged from the conversation about the four observations. "
+            "Focus on what the user and assistant arrived at together - the key takeaways and conclusions. "
+            "Format as 4-7 bullet points. Be specific and concrete.\n\n"
+            "Discussion:"
+        )
+        
+        # Format messages for context
+        for msg in all_messages[-20:]:  # Use last 20 messages to keep context manageable
+            role = "User" if msg["role"] == "user" else "TeamMait"
+            summary_prompt += f"\n{role}: {msg['content'][:200]}"  # Truncate long messages
+        
+        # Call OpenAI to generate summary
+        response_text = ""
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a concise summarizer. Create a bulleted list of key points."},
+                {"role": "user", "content": summary_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300,
+            stream=False
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        logger.error(f"Error generating observations summary: {e}")
+        return ""
+
+
 # ==================== STREAMLIT APP ====================
 
 st.set_page_config(
@@ -956,17 +1002,21 @@ if st.session_state.guided_phase == "intro":
     In this phase, I'll share **4 structured observations** about the therapy session.
 
     ### How to use:
-    1. **Read each observation** - I'll present an assertion and context
-    2. **Discuss or advance** - You can:
+    1. **Read each observation**
+    2. **Discuss, skip, and/or advance** - You can:
        - Type a question or comment to discuss the observation further
        - Click the **⏭️ Next** button to move to the next observation
-    3. **Review phase** - After all 4 observations, you can revisit any to discuss further
+       - Feel free to skip observations if it does not interest you.
+    3. **Review phase**
+        - After all 4 observations, you can revisit any to discuss further
+        - You can also engage in an open-chat with TeamMait about the session.
+            - TeamMait will also provide you a summary of key points from your discussions with it on the four observations.
     4. **Time limit** - You have **20 minutes total** for the entire session
+    
 
     ### Important rules:
-    - You can only move **forward** through observations (required for the experimental design)
+    - You can only move **forward** through observations.
     - In the review phase, you can go back and revisit any observation
-    - All your responses are automatically saved
 
     **Ready to begin?** Click the **▶️ Start** button in the sidebar.
     """
@@ -1378,6 +1428,20 @@ elif st.session_state.guided_phase == "review":
         if is_open_chat:
             st.markdown("### Open Chat - Free Discussion")
             st.divider()
+            
+            # Generate and display summary of key points from observations
+            if "observations_summary_generated" not in st.session_state:
+                summary = generate_observations_summary(st.session_state.all_conversations, client)
+                if summary:
+                    st.session_state.observations_summary = summary
+                    st.session_state.observations_summary_generated = True
+            
+            # Display the summary if it exists
+            if st.session_state.get("observations_summary"):
+                st.markdown("**Key Points from Your Observations:**")
+                st.markdown(st.session_state.observations_summary)
+                st.divider()
+            
             st.info(
                 "Start a free-form conversation about the session, observations, or anything else related to this transcript. "
                 "Use the **← Back to Observations** button to return to the observation list."
