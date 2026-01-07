@@ -74,7 +74,7 @@ BOT_SVG = svg_data_uri(
 
 # ---------- Helpers ----------
 def now_ts() -> str:
-    return datetime.now().strftime("%H:%M:%S")
+    return datetime.now().isoformat()  # Full ISO format for storage
 
 # ---------- Login dialog ----------
 @st.dialog("Login", dismissible=False, width="small")
@@ -521,49 +521,56 @@ def openai_complete(history, system_text, model_name, stream=False, max_tokens=5
 
 
 # ---------- Chat history (scrollable) ----------
-st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
-
 for m in st.session_state.messages:
     role = m["role"]
-    avatar = BOT_SVG if role == "assistant" else DM_SVG
-    css_class = "assistant" if role == "assistant" else "user"
-    st.markdown(f"<div class='msg {css_class}'>", unsafe_allow_html=True)
-    name_for_ui = m.get("display_name", role)
-    
-    # Add role labels for clarity
-    role_label = "TeamMait" if role == "assistant" else "User"
-    
-    with st.chat_message(name=name_for_ui, avatar=avatar):
-        # Display role label and timestamp together
-        if st.session_state.get("show_timestamps", False) and "ts" in m:
-            st.markdown(f"**{role_label}** • <small style='color: #888; font-size: 0.8em;'>*{m['ts']}*</small>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"**{role_label}**")
+    if role == "evidence":
+        # Special handling for evidence blocks
         st.markdown(m["content"])
-    st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)  # close chat-wrapper
-st.markdown("</div>", unsafe_allow_html=True)  # close app-container
+    else:
+        timestamp = m.get("ts", "")
+        time_str = ""
+        if timestamp:
+            try:
+                # Parse ISO format timestamp (e.g., "2024-01-15T14:30:45.123456") and extract HH:MM
+                time_str = timestamp.split("T")[1][:5]  # Get time portion up to minutes
+            except:
+                pass
+        
+        with st.chat_message(role):
+            if time_str:
+                st.caption(f"_{time_str}_")
+            st.markdown(m["content"])
 
 
 # ---------- Input ----------
 
 prompt = st.chat_input("Talk to your TeamMait here...")
 if prompt is not None and prompt.strip() != "":
+    # Add user message with timestamp
     user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
     st.session_state.messages.append(user_msg)
-
-    with st.chat_message(name=username, avatar=DM_SVG):
-        # Display user label and timestamp
-        if st.session_state.get("show_timestamps", False):
-            st.markdown(f"**User** • <small style='color: #888; font-size: 0.8em;'>*{user_msg['ts']}*</small>", unsafe_allow_html=True)
-        else:
-            st.markdown("**User**")
+    
+    with st.chat_message("user"):
+        user_ts = now_ts()
+        st.caption(f"_{user_ts.split('T')[1][:5]}_")  # Show time in HH:MM format
         st.markdown(prompt)
+    
+    # Add thinking placeholder
+    thinking_msg = {"role": "assistant", "content": "*Thinking...*", "ts": now_ts()}
+    st.session_state.messages.append(thinking_msg)
+    
+    st.rerun()
 
+# Continue processing if we have a thinking message at the end
+if (st.session_state.messages and 
+    st.session_state.messages[-1]["role"] == "assistant" and
+    st.session_state.messages[-1]["content"] == "*Thinking...*"):
+    
+    # Get the user message (it's before the thinking message)
+    user_input = st.session_state.messages[-2]["content"] if len(st.session_state.messages) > 1 else ""
+    
     # ---------- Retrieve context from vector DB ----------
-    results = collection.query(query_texts=[prompt], n_results=5)
-    # results["documents"] is a list of lists
+    results = collection.query(query_texts=[user_input], n_results=5)
     retrieved_parts = []
     for docs in results.get("documents", []):
         retrieved_parts.extend(docs)
@@ -577,16 +584,13 @@ if prompt is not None and prompt.strip() != "":
     context = " ".join(context_parts)
 
     # --- Conditional evidence display ---
-    show_evidence = any(kw in prompt.lower() for kw in ["evidence", "quote", "source", "show your work"])
+    show_evidence = any(kw in user_input.lower() for kw in ["evidence", "quote", "source", "show your work"])
     if show_evidence:
         evidence_text = "**Evidence (from transcript) used for this answer:**\n\n"
         for i, evidence in enumerate(retrieved_parts, 1):
             evidence_text += f"> {evidence}\n\n"
-
-        # Show evidence in UI
-        st.markdown(evidence_text)
-
-        # Persist evidence in chat history
+        
+        # Add evidence to message history
         st.session_state.messages.append({
             "role": "evidence",
             "content": evidence_text,
@@ -605,42 +609,50 @@ if prompt is not None and prompt.strip() != "":
     use_openai = st.session_state["model"].startswith("gpt-")
     complete_fn = openai_complete if use_openai else claude_complete
 
-    with st.chat_message(name="TeamMait", avatar=BOT_SVG):
-        # Show TeamMait header with timestamp
-        timestamp = now_ts()
-        if st.session_state.get("show_timestamps", False):
-            st.markdown(f"**TeamMait** • <small style='color: #888; font-size: 0.8em;'>*{timestamp}*</small>", unsafe_allow_html=True)
-        else:
-            st.markdown("**TeamMait**")
-        
+    # Generate response and replace thinking message
+    timestamp = now_ts()
+    
+    try:
+        acc = ""
         if st.session_state["stream_on"]:
-            placeholder = st.empty()
-            acc = ""
+            # For streaming, we need to collect the full response first
             for chunk in complete_fn(
-                history=st.session_state.messages,
+                history=st.session_state.messages[:-1],  # Exclude thinking message
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=True,
             ):
                 acc += chunk
-                placeholder.markdown(acc)
             reply_text = acc.strip()
-        else: # Stream off
+        else:
+            # Non-streaming
             reply_text = complete_fn(
-                history=st.session_state.messages,
+                history=st.session_state.messages[:-1],  # Exclude thinking message
                 system_text=system_prompt,
                 model_name=st.session_state["model"],
                 stream=False,
             )
-            st.markdown(reply_text or "")
-
-    if reply_text and reply_text.startswith("[Error:"):
-        st.session_state.errors.append({"when": timestamp, "model": st.session_state["model"], "msg": reply_text})
-
-    teammait_msg = {
-        "role": "assistant",
-        "content": reply_text,
-        "ts": timestamp,
-        "display_name": "TeamMait",
-    }
-    st.session_state.messages.append(teammait_msg)
+            reply_text = (reply_text or "").strip()
+        
+        # Replace the thinking message with the actual response
+        st.session_state.messages[-1] = {
+            "role": "assistant",
+            "content": reply_text,
+            "ts": timestamp,
+            "display_name": "TeamMait",
+        }
+        
+        if reply_text and reply_text.startswith("[Error:"):
+            st.session_state.errors.append({"when": timestamp, "model": st.session_state["model"], "msg": reply_text})
+    
+    except Exception as e:
+        # Replace thinking message with error
+        st.session_state.messages[-1] = {
+            "role": "assistant",
+            "content": f"[Error: {e}]",
+            "ts": timestamp,
+            "display_name": "TeamMait",
+        }
+        st.session_state.errors.append({"when": timestamp, "model": st.session_state["model"], "msg": str(e)})
+    
+    st.rerun()

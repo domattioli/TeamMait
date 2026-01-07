@@ -10,16 +10,16 @@ st.set_page_config(
 
 # ---------- Login Dialog ----------
 def load_valid_users():
-    """Load valid users from users.json file"""
+    """Load valid users from credentials.json file"""
     try:
-        with open("doc/users.json", "r") as f:
+        with open("doc/credentials.json", "r") as f:
             data = json.load(f)
             return data.get("users", [])
     except FileNotFoundError:
-        st.error("Users configuration file not found.")
+        st.error("Credentials configuration file not found.")
         return []
     except json.JSONDecodeError:
-        st.error("Invalid users configuration file.")
+        st.error("Invalid credentials configuration file.")
         return []
 
 def validate_login(username, password):
@@ -32,17 +32,18 @@ def validate_login(username, password):
 
 @st.dialog("Login", dismissible=False, width="small")
 def get_user_details():
-    username = st.text_input("Username", value="test")
-    password = st.text_input("Password", type="password", value="test")
-    submit = st.button("Submit", type="primary")
+    st.markdown("### Login Required")
+    username = st.text_input("Username", value="admin")
+    password = st.text_input("Password", type="password", value="secureAdminPass123!")
+    submit = st.button("Login", type="primary", use_container_width=True)
     
     if submit:
         if not username or not password:
-            st.warning("Please enter both a username and a password.")
+            st.error("Username and password are required.")
             return
         
         if not validate_login(username, password):
-            st.error("Invalid username or password. Please try again.")
+            st.error("Invalid credentials. Please try again.")
             return
         
         st.session_state.user_info = {
@@ -65,34 +66,31 @@ if "user_info" not in st.session_state:
 st.title("TeamMait: Therapy Transcript Review Assistant")
 
 st.markdown("""
-## Welcome!
-
+### Welcome!
 - TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
+- Please read the instructions **and** consent form below before proceeding.
+            
+# Instructions
 - You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
+- For each of the two modules you can find a PE session transcript in the left side panel of the page.**
+- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
+- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
 
-### Instructions
-- For each of the two modules you can find a transcript between a unique therapist and their unique patient in the left side panel of that page.**
-
-#### Module 1
-- Ask TeamMait any questions about the therapy transcript, therapist behavior,  demonstratic clinical skill, or therapuetic process.
-- **Natural Conversation**: TeamMait responds when you initiate questions - there are no predetermined prompts.
+#### Module 1               ~ 15-20 minutes
+- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
+- **Natural Conversation**: TeamMait responds when you initiate questions.
 - Use TeamMait however feels natural for your evaluation process
 - Feel free to request justification or supporting evidence for anything TeamMait offers to you.
-- This should take approximately 15-20 minutes.
 
-#### Qualtrics Survey
-- Complete a survey about your experience in the field and with TeamMait Module 1.
-- This should take approximately 5 minutes.
+#### Qualtrics Survey       ~ 5 minutes
             
-#### Module 2  
+#### Module 2               ~ 20 minutes
 - TeamMait will share prepared observations about notable aspects of the transcript.
-- Progress through observations at your own pace, with options to explore topics further depth or breadth.
-- Again, feel free to requiest supporting evidence for anything TeamMait offers to you.
-- This should take approximately 20-25 minutes.
+- Progress through observations at your own pace.
+- Again, feel free to request TeamMait to expand on anything offers to you.
             
-#### Qualitative Interview
-- Complete a brief interview with the proctor to examine your mindset during Module 2.
-- This should take approximately 10 minutes.
+#### Qualitative Interview  ~ 10-15 minutes
+- Complete a short interview to explore your experience with TeamMait.
 ---
 
 ---
@@ -103,18 +101,15 @@ st.markdown("""
 This research study investigates how AI can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
 
 #### Data Collection & Privacy
-- All conversations with TeamMait are recorded via Zoom for research analysis. Transcripts of your conversations with TeamMait, and your survey and interview answers, will be saved and anonymized..
-- Your identity will be removed from all data used in research publications or presentations. Zoom recordings will be deleted after the collected transcripts of your conversations with TeamMait have been verified and stored securely.
-- All data is stored securely on Penn State University servers and will only be accessed by authorized research personnel.
-- No clinical information will be shared during this study.
-- Please do not include identifying information about yourself or others in your responses or discussions.
+- Transcripts and survey/interview responses will be anonymized and stored securely on secured Penn State servers (authorized personnel only). Your identity will be anonymized from all data prior to analysis.
+- Your interactions with TeamMait will be recorded via Zoom; recordings will be deleted after transcripts are verified and archived.
+- Please avoid including identifying information about yourself or others in your messages.
 
 #### Your Rights
-- Your participation is completely voluntary
-- You may discontinue participation at any time without explanation or penalty
-- You may ask questions about the study at any point
-- While there are no direct benefits to you, your participation contributes to advancing clinical training tools
-
+- Participation is completely voluntary; you may discontinue at any time without penalty.
+- You may ask any questions to the proctor at any point.
+- Your participation contributes to advancing clinical training tools
+            
 #### Contact Information
 If you have questions about this research study, please contact the research team through your institutional channels.
 """)

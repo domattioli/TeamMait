@@ -260,6 +260,7 @@ def build_system_prompt() -> str:
         "- If the user expresses confusion (e.g., \"what?\", \"I don’t understand\", \"unclear\"), provide a simpler, more direct explanation of your prior point.\n"
         "- Do not offer unsolicited elaboration or additional insights outside analytic tasks.\n"
         "- Do NOT ask if the user wants you to analyze or offer to analyze. Simply respond to their question or request directly based on context. Only ask for clarification if the user's intent is genuinely ambiguous (e.g., unclear phrasing, conflicting requests).\n"
+        "- NEVER end messages with offers like 'Would you like me to...', 'Would you like me to analyze...', 'Should I...', 'Do you want me to...', or similar. This is engagement-seeking behavior. Just respond to what was asked and let the user decide their next move.\n"
         "- Never use or reference the observation titles from the system (e.g., 'Vague Noticing Prompt', 'Evidence-Only Reflection', etc.). If the user references 'that observation' or asks about an observation, create a new summative title based on what the observation is actually about (e.g., 'that observation about SUDS monitoring' instead of 'the Evidence-Only Reflection').\n"
 
         "2. ANALYSIS MODE (ONLY WHEN USER REQUESTS SUPERVISORY ANALYSIS)\n"
@@ -534,8 +535,8 @@ def load_question_bank() -> Optional[List[Dict]]:
     """Load and validate the question bank.
     
     Returns items in order:
-    - Items 1-3 (vague_noticing, evidence_only_reflection, evidence_based_evaluation) are randomized
-    - Item 4 (actionable_training_prescription) always comes last
+    - Items 1-2 (evidence_only_reflection, evidence_based_evaluation) are randomized
+    - Item 3 (actionable_training_prescription) always comes last
     """
     question_path = "doc/interaction_prompts/interaction_prompts.json"
 
@@ -572,19 +573,19 @@ def load_question_bank() -> Optional[List[Dict]]:
         st.error(f"{error_msg}")
         st.stop()
 
-    if len(questions) < 4:
-        error_msg = f"Question bank has {len(questions)} questions, need at least 4"
+    if len(questions) < 3:
+        error_msg = f"Question bank has {len(questions)} questions, need at least 3"
         logger.error(error_msg)
         st.error(f"{error_msg}")
         st.stop()
 
-    # Validate structure: exactly 4 items with unique style values
-    valid_styles = {"vague_noticing", "evidence_only_reflection", "evidence_based_evaluation", "actionable_training_prescription"}
+    # Validate structure: exactly 3 items with unique style values
+    valid_styles = {"evidence_only_reflection", "evidence_based_evaluation", "actionable_training_prescription"}
     found_styles = set()
     actionable_item = None
     randomizable_items = []
     
-    for i, q in enumerate(questions[:4]):
+    for i, q in enumerate(questions[:3]):
         if not isinstance(q, dict):
             error_msg = f"Item {i + 1} is not a dict"
             logger.error(error_msg)
@@ -643,7 +644,7 @@ def load_question_bank() -> Optional[List[Dict]]:
     random.shuffle(randomizable_items)
     ordered_items = randomizable_items + [actionable_item]
 
-    logger.info(f"Successfully validated 4 feedback items with all required styles (randomized first 3)")
+    logger.info(f"Successfully validated 3 feedback items with all required styles (randomized first 2)")
     return ordered_items
 
 
@@ -742,12 +743,12 @@ def render_feedback_item(item: Dict) -> None:
 
 
 def generate_observations_summary(conversations: Dict, client: any) -> str:
-    """Generate a bulleted summary of key points from all four observation discussions,
+    """Generate a bulleted summary of key points from all three observation discussions,
     with calls to action for supervisor recommendations on trainee development."""
     try:
-        # Collect all messages from the four observations
+        # Collect all messages from the three observations
         all_messages = []
-        for i in range(4):
+        for i in range(3):
             if i in conversations and conversations[i]:
                 all_messages.extend(conversations[i])
         
@@ -1192,7 +1193,7 @@ if (
 def get_intro_message():
     return """
 ### Help:
-In this Module, I'll share **4 structured observations** about the therapy session.
+In this Module, I'll share **3 structured observations** about the therapy session.
 
 ### How to use:
 1. **Read each observation**
@@ -1202,7 +1203,7 @@ In this Module, I'll share **4 structured observations** about the therapy sessi
    - Click the **⏭️ Next** button to move to the next observation.
    - Feel free to skip observations if it does not interest you.
 3. **Review phase**
-   - Once you've reviewed all 4 observations, you'll enter the review phase.
+   - Once you've reviewed all 3 observations, you'll enter the review phase.
    - You can continue discussing with TeamMait about any aspect of the session.
    - Click **✓ End Session & Save Data** when you're ready to conclude.
 4. **Time limit** - You have <u>**20 minutes total**</u> for the entire session.
@@ -1287,6 +1288,13 @@ elif st.session_state.guided_phase == "active":
                 if time_str:
                     st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
+        
+        # Auto-scroll to latest message
+        st.markdown("""
+        <script>
+            window.scrollTo(0, document.body.scrollHeight);
+        </script>
+        """, unsafe_allow_html=True)
         
         # User input
         user_input = st.chat_input("Your response or question...")
@@ -1738,6 +1746,13 @@ elif st.session_state.guided_phase == "review":
                 if time_str:
                     st.caption(f"_{time_str}_")
                 st.markdown(msg["content"])
+        
+        # Auto-scroll to latest message
+        st.markdown("""
+        <script>
+            window.scrollTo(0, document.body.scrollHeight);
+        </script>
+        """, unsafe_allow_html=True)
         
         # User input
         user_input = st.chat_input("Your response or question...")
