@@ -4,7 +4,6 @@ sandboxing/
 # custom lines
 .streamlit/secrets.toml
 .venv/
-doc/credentials.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
