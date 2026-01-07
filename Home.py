@@ -12,21 +12,11 @@ st.set_page_config(
 def load_valid_users():
     """Load valid users from credentials.json file"""
     try:
-        import os
-        # Try multiple possible paths
-        paths_to_try = [
-            "doc/credentials.json",
-            os.path.join(os.path.dirname(__file__), "doc/credentials.json"),
-            os.path.join(os.getcwd(), "doc/credentials.json")
-        ]
-        
-        for path in paths_to_try:
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    data = json.load(f)
-                    return data.get("users", [])
-        
-        st.error(f"Credentials configuration file not found. Tried: {paths_to_try}")
+        with open("doc/credentials.json", "r") as f:
+            data = json.load(f)
+            return data.get("users", [])
+    except FileNotFoundError:
+        st.error("Credentials configuration file not found.")
         return []
     except json.JSONDecodeError:
         st.error("Invalid credentials configuration file.")
