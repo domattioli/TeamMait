@@ -13,30 +13,23 @@ def load_valid_users():
     """Load valid users from credentials.json file"""
     try:
         import os
-        from pathlib import Path
+        # Try multiple possible paths
+        paths_to_try = [
+            "doc/credentials.json",
+            os.path.join(os.path.dirname(__file__), "doc/credentials.json"),
+            os.path.join(os.getcwd(), "doc/credentials.json")
+        ]
         
-        # Try the simplest relative path first
-        if os.path.exists("doc/credentials.json"):
-            with open("doc/credentials.json", "r") as f:
-                data = json.load(f)
-                return data.get("users", [])
+        for path in paths_to_try:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                    return data.get("users", [])
         
-        # Fallback: try Path-based approach
-        script_dir = Path(__file__).parent.resolve()
-        creds_file = script_dir / "doc" / "credentials.json"
-        
-        if creds_file.exists():
-            with open(creds_file, "r") as f:
-                data = json.load(f)
-                return data.get("users", [])
-        
-        st.error(f"Credentials file not found. Checked: doc/credentials.json and {creds_file}")
+        st.error(f"Credentials configuration file not found. Tried: {paths_to_try}")
         return []
-    except json.JSONDecodeError as e:
-        st.error(f"Invalid JSON in credentials file: {e}")
-        return []
-    except Exception as e:
-        st.error(f"Error loading credentials: {e}")
+    except json.JSONDecodeError:
+        st.error("Invalid credentials configuration file.")
         return []
 
 def validate_login(username, password):
