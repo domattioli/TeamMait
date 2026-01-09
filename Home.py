@@ -32,8 +32,8 @@ def validate_login(username, password):
 @st.dialog("Login", dismissible=False, width="small")
 def get_user_details():
     st.markdown("### Login Required")
-    username = st.text_input("Username", value="admin")
-    password = st.text_input("Password", type="password", value="secureAdminPass123!")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
     submit = st.button("Login", type="primary", use_container_width=True)
     
     if submit:

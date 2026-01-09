@@ -34,11 +34,7 @@ def build_export():
             "session_name": session_name,
             "username": username,
             "exported_at": datetime.now().isoformat(),
-            "version": "2.0",  # Updated version for enhanced export
-        },
-        "completion_tracking": {
-            "completion_status": st.session_state.get("completion_status", {}),
-            "checkbox_events": st.session_state.get("debug_trace", []),  # Captures when checkboxes were checked
+            "version": "3.0",  # Updated version for enhanced export
         },
         "parts": {}
     }
