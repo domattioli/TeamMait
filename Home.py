@@ -65,6 +65,13 @@ if "user_info" not in st.session_state:
 st.title("TeamMait: Therapy Transcript Review Assistant")
 
 st.markdown("""
+<style>
+    body { font-size: 16px; }
+    h3, h4 { font-size: 18px; }
+    p { font-size: 16px; line-height: 1.6; }
+    li { font-size: 16px; line-height: 1.6; }
+</style>
+
 ### Welcome!
 - TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
 - Please read the instructions **and** consent form below before proceeding.
@@ -110,8 +117,8 @@ This research study investigates how AI can enhance clinical supervision and tra
 - Your participation contributes to advancing clinical training tools
             
 #### Contact Information
-If you have questions about this research study, please contact the research team through your institutional channels.
-""")
+If you have questions about this research study, please contact the research team via domattioli@psu.edu.
+""", unsafe_allow_html=True)
 
 st.markdown("""
 ---
@@ -136,6 +143,13 @@ def _on_consent_change():
 
 # Consent checkbox
 st.checkbox("I have read and agree to the consent form", key="consent_given", on_change=_on_consent_change)
+
+st.markdown(
+    "<p style='font-size: 14px; color: #6b7280; margin-top: 16px;'>"
+    "After you check the consent box and complete the form, click the <strong>Module 1</strong> tab in the left sidebar to continue."
+    "</p>",
+    unsafe_allow_html=True
+)
 
 # Sync the checkbox state with the persistent completion tracker
 persistent_value = st.session_state["completion_status"].get("home", False)
