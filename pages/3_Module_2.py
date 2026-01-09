@@ -1328,9 +1328,13 @@ elif st.session_state.guided_phase == "active":
                     "message",
                 )
 
-                # Check for duplicates
-                if not st.session_state.message_buffer.add_message(user_input):
+                # Check for duplicates and near-duplicates
+                is_new, is_near_duplicate = st.session_state.message_buffer.add_message(user_input)
+                
+                if not is_new:
                     st.warning("That looks like the same message. Please type something new.")
+                elif is_near_duplicate:
+                    st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
                 else:
                     # Add to history WITH TIMESTAMP
                     st.session_state.all_conversations[current_idx].append(
@@ -1781,9 +1785,13 @@ elif st.session_state.guided_phase == "review":
                     "message",
                 )
                 
-                # Check for duplicates
-                if not st.session_state.message_buffer.add_message(user_input):
+                # Check for duplicates and near-duplicates
+                is_new, is_near_duplicate = st.session_state.message_buffer.add_message(user_input)
+                
+                if not is_new:
                     st.warning("That looks like the same message. Please type something new.")
+                elif is_near_duplicate:
+                    st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
                 else:
                     # Add to history WITH TIMESTAMP
                     st.session_state.all_conversations[current_idx].append(

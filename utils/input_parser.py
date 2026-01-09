@@ -127,27 +127,39 @@ Or, if you have more thoughts on this observation, feel free to share them below
 
 
 class MessageBuffer:
-    """Manages user messages to prevent duplicates."""
+    """Manages user messages to prevent duplicates and detect near-duplicates."""
 
     def __init__(self):
         self.last_message = None
         self.last_message_hash = None
 
-    def add_message(self, message: str) -> bool:
+    def add_message(self, message: str) -> tuple[bool, bool]:
         """
         Add message to buffer.
 
-        Returns: False if duplicate, True if new
+        Returns: (is_new, is_near_duplicate)
+        - is_new: False if exact duplicate
+        - is_near_duplicate: True if >90% similar to last message
         """
+        from difflib import SequenceMatcher
+        
         msg_hash = hash(message.strip())
+        is_near_duplicate = False
 
         if msg_hash == self.last_message_hash:
-            logger.warning("Duplicate message detected, skipping")
-            return False
+            logger.warning("Exact duplicate message detected")
+            return False, False
+
+        # Check for near-duplicates (>90% similarity)
+        if self.last_message:
+            similarity = SequenceMatcher(None, self.last_message.lower(), message.lower()).ratio()
+            if similarity > 0.9:
+                logger.warning(f"Near-duplicate detected: {similarity:.1%} similar")
+                is_near_duplicate = True
 
         self.last_message = message
         self.last_message_hash = msg_hash
-        return True
+        return True, is_near_duplicate
 
     def clear(self):
         """Clear buffer."""
