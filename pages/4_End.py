@@ -4,6 +4,7 @@ from datetime import datetime
 import json as _json
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from utils.session_manager import SessionManager
 
 st.set_page_config(page_title="Finish Final", page_icon="")
 
@@ -13,15 +14,44 @@ if "user_info" not in st.session_state:
 
 username = st.session_state["user_info"]["username"]
 
+# Auto-save all session data on End page load to prevent data loss
+if "end_page_autosaved" not in st.session_state:
+    try:
+        # Save Module 1 conversations if they exist
+        if "messages" in st.session_state and st.session_state.get("module1_session_id"):
+            SessionManager.save_conversations(
+                username,
+                st.session_state.module1_session_id,
+                {"module1": st.session_state.messages}
+            )
+        
+        # Save Module 2 conversations if they exist
+        if "all_conversations" in st.session_state and st.session_state.get("guided_session_id"):
+            SessionManager.save_conversations(
+                username,
+                st.session_state.guided_session_id,
+                st.session_state.all_conversations
+            )
+            # Also mark session as completed
+            metadata = SessionManager.load_session_metadata(username, st.session_state.guided_session_id)
+            if metadata:
+                metadata["status"] = "completed"
+                metadata["completed_at"] = datetime.now().isoformat()
+                SessionManager.save_session_metadata(username, st.session_state.guided_session_id, metadata)
+        
+        st.session_state.end_page_autosaved = True
+    except Exception:
+        pass  # Silent fail - don't block user from manual save
+
 # Sidebar
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
 
-st.title("Finished")
+st.title("Finished?")
 
 st.markdown(
     "<p style='font-size:24px; font-weight: bold; margin: 40px 0;'>"
-    "Finished? Click the 'Save Responses' button below and then let your proctor know that you're done."
+    "Click the 'Save Responses' button below and then let your proctor know that you're done."
     "</p>",
     unsafe_allow_html=True
 )

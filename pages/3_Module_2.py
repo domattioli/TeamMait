@@ -873,7 +873,7 @@ def sync_session_to_storage():
     """Sync current session state to persistent storage."""
     try:
         # Save conversations
-        SessionManager.save_conversations(
+        conv_success = SessionManager.save_conversations(
             username,
             st.session_state.guided_session_id,
             st.session_state.all_conversations,
@@ -883,6 +883,7 @@ def sync_session_to_storage():
         metadata = SessionManager.load_session_metadata(
             username, st.session_state.guided_session_id
         )
+        meta_success = False
         if metadata:
             metadata.update(
                 {
@@ -895,11 +896,17 @@ def sync_session_to_storage():
                     "last_activity": datetime.now().isoformat(),
                 }
             )
-            SessionManager.save_session_metadata(
+            meta_success = SessionManager.save_session_metadata(
                 username, st.session_state.guided_session_id, metadata
             )
+        
+        # Warn user if save failed (but don't interrupt their work)
+        if not conv_success or not meta_success:
+            st.toast("⚠️ Auto-save may have failed. Your work is preserved in memory.", icon="⚠️")
+            
     except Exception as e:
         logger.error(f"Error syncing session: {e}")
+        st.toast("⚠️ Save error - progress preserved in memory", icon="⚠️")
         # Calculate elapsed time safely
         if st.session_state.guided_session_start is not None:
             elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
@@ -1509,7 +1516,6 @@ elif st.session_state.guided_phase == "review":
     
     st.info(
         "Feel free to discuss any other aspects of the session, ask questions, or share additional thoughts. "
-        "You can continue indefinitely in this review phase."
     )
     
     # Display conversation history WITH TIMESTAMPS

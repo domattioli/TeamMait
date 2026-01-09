@@ -1,7 +1,9 @@
 import streamlit as st
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
+from utils.session_manager import SessionManager
 
 st.set_page_config(
     page_title="TeamMait - Therapy Transcript Review",
@@ -72,6 +74,33 @@ def get_user_details():
             st.session_state["username"] = username
             st.session_state["password"] = password
             st.rerun()
+
+# Initialize main session ID for all modules
+if "main_session_id" not in st.session_state:
+    st.session_state.main_session_id = str(uuid.uuid4())
+
+def persist_consent_data():
+    """Persist consent and session data to disk."""
+    try:
+        username = st.session_state.get("username", "unknown")
+        session_id = st.session_state.get("main_session_id", "unknown")
+        
+        metadata = {
+            "session_id": session_id,
+            "username": username,
+            "created_at": datetime.now().isoformat(),
+            "last_activity": datetime.now().isoformat(),
+            "consent_given": st.session_state.get("user_info", {}).get("consent_given"),
+            "consent_timestamp": st.session_state.get("user_info", {}).get("consent_timestamp"),
+            "is_test_user": st.session_state.get("is_test_user", False),
+            "status": "active",
+        }
+        
+        success = SessionManager.save_session_metadata(username, session_id, metadata)
+        if not success:
+            st.toast("⚠️ Failed to save consent", icon="⚠️")
+    except Exception:
+        pass  # Silent fail
 
 # Handle test user API key prompt
 if "is_test_user" not in st.session_state:
@@ -155,6 +184,7 @@ consent = st.checkbox("I have read and agree to the consent form above.", key="c
 if consent:
     st.session_state.user_info["consent_given"] = True
     st.session_state.user_info["consent_timestamp"] = datetime.now().isoformat()
+    persist_consent_data()  # Save consent to disk
     st.markdown(
         "<p style='font-size: 20px; font-weight: bold; color: #059669; margin-top: 16px;'>"
         "Click the '<u><strong>Module 1</strong></u>' tab in the left sidebar to continue."
