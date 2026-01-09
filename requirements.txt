@@ -30,7 +30,7 @@ pandas==2.3.2
 numpy==2.0.2
 requests==2.32.5
 python-docx==1.1.2
-fpdf2==2.8.1
+fpdf2==2.8.4
 
 ## NOTE: This project requires Python 3.10+ for some ML libraries
 ## (transformers/sentence-transformers). Use a Python >=3.10 virtualenv
