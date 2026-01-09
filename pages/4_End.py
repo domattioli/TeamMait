@@ -259,6 +259,73 @@ def build_export():
     export["disclaimer"] = "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting."
     return session_name, json.dumps(export, indent=2)
 
+
+def build_participant_export():
+    """Build a clean export for participants - conversations only, no analytics."""
+    session_name = f"teammait_transcript_{username}_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+    
+    export = {
+        "session_info": {
+            "app": "TeamMait",
+            "username": username,
+            "date": datetime.now().strftime("%B %d, %Y"),
+            "time": datetime.now().strftime("%I:%M %p"),
+        },
+        "conversations": {}
+    }
+
+    # Module 1: Open Chat
+    if st.session_state.get("include_open_chat", False):
+        open_chat_messages = st.session_state.get("messages", [])
+        clean_messages = []
+        
+        for msg in open_chat_messages:
+            if msg.get("role") in ("user", "assistant"):
+                clean_messages.append({
+                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
+                    "message": msg.get("content", ""),
+                })
+        
+        if clean_messages:
+            export["conversations"]["Module 1 - Open Review"] = clean_messages
+
+    # Module 2: Guided Observations
+    if st.session_state.get("include_guided_interaction", False):
+        all_conversations = st.session_state.get("all_conversations", {})
+        question_bank = st.session_state.get("question_bank", [])
+        
+        for obs_idx in range(len(question_bank)):
+            obs_messages = all_conversations.get(obs_idx, [])
+            obs_data = question_bank[obs_idx] if obs_idx < len(question_bank) else {}
+            obs_title = obs_data.get("title", f"Observation {obs_idx + 1}")
+            
+            clean_messages = []
+            for msg in obs_messages:
+                if msg.get("role") in ("user", "assistant"):
+                    clean_messages.append({
+                        "speaker": "You" if msg.get("role") == "user" else "TeamMait",
+                        "message": msg.get("content", ""),
+                    })
+            
+            if clean_messages:
+                export["conversations"][f"Module 2 - Item {obs_idx + 1}: {obs_title}"] = clean_messages
+        
+        # Open chat from review phase
+        open_chat = all_conversations.get("open_chat", [])
+        if open_chat:
+            clean_open = []
+            for msg in open_chat:
+                if msg.get("role") in ("user", "assistant"):
+                    clean_open.append({
+                        "speaker": "You" if msg.get("role") == "user" else "TeamMait",
+                        "message": msg.get("content", ""),
+                    })
+            if clean_open:
+                export["conversations"]["Module 2 - Follow-up Discussion"] = clean_open
+
+    export["note"] = "This is a record of your conversation with TeamMait. Thank you for participating!"
+    return session_name, json.dumps(export, indent=2)
+
 # Custom CSS for red save button
 st.markdown("""
 <style>
@@ -284,15 +351,22 @@ clicked = st.button("Save Responses", type="primary")
 
 if clicked:
     session_name, json_data = build_export()
-    st.download_button(label="Download consolidated JSON", data=json_data, file_name=f"{session_name}.json", mime="application/json")
-
+    participant_name, participant_data = build_participant_export()
+    
     # Only try Google Sheets for non-test users
     is_test_user = st.session_state.get("is_test_user", False)
     
     if is_test_user:
-        st.info("✅ Test mode: Data downloaded. (Google Sheets integration not available for test users)")
+        # Test users get a download since they don't have Google Sheets
+        st.download_button(
+            label="Download Results", 
+            data=json_data, 
+            file_name=f"{session_name}.json", 
+            mime="application/json"
+        )
+        st.info("✅ Test mode: Click above to download your results. (Google Sheets integration not available for test users)")
     else:
-        # Attempt to append to Google Sheets if configured
+        # Real participants - save to Google Sheets
         try:
             creds = st.secrets.get("GOOGLE_CREDENTIALS")
             sheet_name = st.secrets.get("SHEET_NAME")
@@ -303,8 +377,17 @@ if clicked:
                 gs = gspread.authorize(creds_obj)
                 sheet = gs.open(sheet_name).sheet1
                 sheet.append_row([json_data, datetime.now().isoformat()])
-                st.success("Saved and appended to Google Sheet.")
+                st.success("✅ Your responses have been saved. Thank you for participating!")
+                
+                # Offer clean transcript download to participants
+                st.download_button(
+                    label="Download Your Conversation Transcript",
+                    data=participant_data,
+                    file_name=f"{participant_name}.json",
+                    mime="application/json",
+                    help="Download a copy of your conversations with TeamMait"
+                )
             else:
-                st.info("Saved locally (download available). Google Sheets not configured.")
+                st.warning("Could not save to Google Sheets. Please notify your proctor.")
         except Exception as e:
-            st.info(f"Saved locally. Google Sheets append failed or not configured: {e}")
+            st.error(f"Error saving responses. Please notify your proctor. (Error: {e})")
