@@ -197,10 +197,9 @@ with st.expander("Instructions (click to expand)"):
 - Complete a short interview to explore your experience with TeamMait.
     """)
 
-# ---------- Footer ----------
-st.divider()
-st.caption(f"Logged in as: **{st.session_state['username']}**")
-
+# ---------- Sidebar ----------
+with st.sidebar:
+    st.markdown(f"**Username:** {st.session_state['username']}")
 
 # Preload Module data in background when user is on Home page
 if st.session_state.username:
