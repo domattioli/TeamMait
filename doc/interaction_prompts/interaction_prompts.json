@@ -2,6 +2,8 @@
   "feedback_items": [
     {
       "id": "item_1",
+      "style": "evidence_only_reflection",
+      "title": "SUDS Monitoring During Imaginal Exposure",
       "role": "Analyst",
       "description": "observation & evidence",
       "summary": "Repeated SUDS monitoring during imaginal exposure.",
@@ -17,36 +19,43 @@
       ],
       "evaluation": "",
       "suggestion": "",
+      "justification": "",
       "conceptual_focus": "suds_monitoring"
     },
     {
       "id": "item_2",
+      "style": "evidence_based_evaluation",
+      "title": "Engagement with Internal Experience",
       "role": "Evaluator",
       "description": "observation, evidence & assessment",
       "summary": "Adequate engagement with internal experience during exposure.",
       "observation": "The therapist consistently prompts physiological, emotional, and cognitive experience and provides reinforcing statements during imaginal recounting.",
       "evidence": [
-        "Reinforcement: \"You’re doing well,\" \"You’re doing great,\" \"You’ve done really well.\"",
-        "Physiology prompts: \"What are you feeling in your body?\" and \"What’s happening in your body?\"",
+        "Reinforcement: \"You're doing well,\" \"You're doing great,\" \"You've done really well.\"",
+        "Physiology prompts: \"What are you feeling in your body?\" and \"What's happening in your body?\"",
         "Cognitive prompt: \"Stay with it. What are you thinking?\"",
         "Emotion prompts: \"What are you feeling now?\" and \"Stay with those thoughts. What happens next?\""
       ],
       "evaluation": "These behaviors are consistent with PE expectations for maintaining engagement during imaginal exposure.",
       "suggestion": "",
+      "justification": "",
       "conceptual_focus": "reinforcement_and_therapist_engagement"
     },
     {
       "id": "item_3",
+      "style": "actionable_training_prescription",
+      "title": "Post-Exposure Processing",
       "role": "Digital Colleague",
       "description": "observation, evidence, assessment & prescription",
       "summary": "Opportunity to strengthen post-exposure processing.",
-      "observation": "Following imaginal exposure, the therapist validates the client’s experience and proceeds to session closure without an explicit processing segment.",
+      "observation": "Following imaginal exposure, the therapist validates the client's experience and proceeds to session closure without an explicit processing segment.",
       "evidence": [
         "After the client reports feeling \"broken,\" the therapist validates and orients the client back to the room.",
         "After the client later reports feeling \"stronger for having faced this,\" the therapist initiates end-of-session breathing and closure."
       ],
       "evaluation": "The transition to closure is appropriate but leaves limited space for explicit meaning-making.",
       "suggestion": "Add a brief processing segment after exposure (for example, what stood out most or how the client is interpreting the experience) to support learning consolidation.",
+      "justification": "",
       "conceptual_focus": "processing_after_imaginal_exposure"
     }
   ]

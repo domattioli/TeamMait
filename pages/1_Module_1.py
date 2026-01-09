@@ -584,7 +584,13 @@ for m in st.session_state.messages:
 prompt = st.chat_input("Talk to your TeamMait here...")
 if prompt is not None and prompt.strip() != "":
     # Check for duplicate or near-duplicate messages
-    is_new, is_near_duplicate = st.session_state.message_buffer.add_message(prompt)
+    # Handle both old (bool) and new (tuple) return types for session compatibility
+    result = st.session_state.message_buffer.add_message(prompt)
+    if isinstance(result, tuple):
+        is_new, is_near_duplicate = result
+    else:
+        # Old session with outdated MessageBuffer - treat as new message
+        is_new, is_near_duplicate = True, False
     
     if not is_new:
         st.warning("⚠️ You just asked that. Please try a different question.")
