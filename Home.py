@@ -161,34 +161,6 @@ if consent:
         "</p>",
         unsafe_allow_html=True
     )
-    
-    # Collapsible instructions panel
-    with st.expander("📋 Instructions (click to expand)"):
-        st.markdown("""
-### Study Overview
-- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
-- For each of the two modules you can find a PE session transcript in the left side panel of the page.
-- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
-- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
-- The entire study will last approximately 55 minutes.
-    - Your proctor will keep track of your time to ensure you stay within the study limits.
-                    
-#### Module 1 ~ 15-20 minutes
-- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
-- **Natural Conversation**: TeamMait responds when you initiate questions.
-- Use TeamMait however feels natural for your evaluation process
-- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
-
-#### Qualtrics Survey ~ 5 minutes
-            
-#### Module 2 ~ 20 minutes
-- TeamMait will share prepared observations about notable aspects of the transcript.
-- Progress through observations at your own pace.
-- Again, feel free to request TeamMait to expand on anything offers to you.
-            
-#### Qualitative Interview ~ 10-15 minutes
-- Complete a short interview to explore your experience with TeamMait.
-        """)
 else:
     st.markdown(
         "<p style='font-size: 18px; color: #6b7280; margin-top: 16px;'>"
@@ -196,6 +168,34 @@ else:
         "</p>",
         unsafe_allow_html=True
     )
+
+# Collapsible instructions panel (always visible)
+with st.expander("📋 Instructions (click to expand)"):
+    st.markdown("""
+### Study Overview
+- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
+- For each of the two modules you can find a PE session transcript in the left side panel of the page.
+- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
+- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
+- The entire study will last approximately 55 minutes.
+    - Your proctor will keep track of your time to ensure you stay within the study limits.
+                
+#### Module 1 ~ 15-20 minutes
+- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
+- **Natural Conversation**: TeamMait responds when you initiate questions.
+- Use TeamMait however feels natural for your evaluation process
+- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
+
+#### Qualtrics Survey ~ 5 minutes
+        
+#### Module 2 ~ 20 minutes
+- TeamMait will share prepared observations about notable aspects of the transcript.
+- Progress through observations at your own pace.
+- Again, feel free to request TeamMait to expand on anything offers to you.
+        
+#### Qualitative Interview ~ 10-15 minutes
+- Complete a short interview to explore your experience with TeamMait.
+    """)
 
 # ---------- Footer ----------
 st.divider()

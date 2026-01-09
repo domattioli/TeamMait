@@ -799,6 +799,13 @@ if "open_chat_mode" not in st.session_state:
 if "timer_started" not in st.session_state:
     st.session_state.timer_started = False
 
+# Message queue for sequential processing
+if "message_queue" not in st.session_state:
+    st.session_state.message_queue = []
+
+if "is_processing" not in st.session_state:
+    st.session_state.is_processing = False
+
 # Load RAG documents
 rag_status = load_rag_documents()
 if "rag_load_status" not in st.session_state:
@@ -974,12 +981,6 @@ with st.sidebar:
             else:
                 st.rerun()
     
-    elif st.session_state.guided_phase == "review":
-        if st.button("✓ End Session & Save Data", use_container_width=True, key="end_session_button", type="primary"):
-            st.session_state.guided_phase = "complete"
-            sync_session_to_storage()
-            st.rerun()
-
     # Show reference conversation
     with st.expander("Show Referenced Full Conversation", expanded=True):
         ref_conversation = load_reference_conversation()
@@ -1046,10 +1047,11 @@ In this Module, I'll share **3 structured observations** about the therapy sessi
 3. **Review phase**
    - Once you've reviewed all 3 observations, you'll enter the review phase.
    - You can continue discussing with TeamMait about any aspect of the session.
-   - Click **✓ End Session & Save Data** when you're ready to conclude.
+   - When you're done, navigate to the **Finish** tab to save your data.
 
 ### Note:
 - You can only move **forward** through observations.
+- You can revisit previous observations during the review phase at the end.
 """
 
 if st.session_state.guided_phase == "intro":
@@ -1174,7 +1176,14 @@ elif st.session_state.guided_phase == "active":
                 elif is_near_duplicate:
                     st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
                 else:
-                    # Add to history WITH TIMESTAMP
+                    # Add message to queue for sequential processing
+                    st.session_state.message_queue.append({
+                        "user_input": user_input,
+                        "observation_idx": current_idx,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
+                    # Add to conversation history immediately
                     st.session_state.all_conversations[current_idx].append(
                         {
                             "role": "user",
@@ -1183,138 +1192,176 @@ elif st.session_state.guided_phase == "active":
                         }
                     )
 
-                    # Immediately add a placeholder assistant message showing "Thinking..."
-                    st.session_state.all_conversations[current_idx].append(
-                        {
-                            "role": "assistant",
-                            "content": "*Thinking...*",
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    )
+                    # Add "Thinking..." placeholder if not already processing
+                    if not st.session_state.is_processing:
+                        st.session_state.all_conversations[current_idx].append(
+                            {
+                                "role": "assistant",
+                                "content": "*Thinking...*",
+                                "timestamp": datetime.now().isoformat()
+                            }
+                        )
                     
                     sync_session_to_storage()
-                    st.rerun()  # Rerun to display both messages immediately
+                    st.rerun()  # Rerun to display the user message
 
 
-# Continue processing after rerun if we have a thinking message
+# Process message queue sequentially
 current_idx = st.session_state.current_question_idx
-if st.session_state.guided_phase == "active" and current_idx < len(st.session_state.question_bank) and st.session_state.all_conversations[current_idx]:
-    if st.session_state.all_conversations[current_idx][-1]["content"] == "*Thinking...*":
-        # Get the user message (it's the one before thinking)
-        user_input = st.session_state.all_conversations[current_idx][-2]["content"] if len(st.session_state.all_conversations[current_idx]) > 1 else ""
-        
-        # Generate AI response to replace the thinking message
-        current_q_data = st.session_state.question_bank[current_idx]
-        context = retrieve_context(user_input)
-        observation_context = format_observation_context(current_q_data)
-        system_prompt = (
-            build_system_prompt()
-            + f"\n\nCurrent Observation Being Discussed:\n{observation_context}\n\n"
-            f"Context from transcript:\n{context}"
-        )
-
-        try:
-            # Generate response
-            acc = ""
-            start_time = time.time()
-
-            response_gen = OpenAIHandler.openai_complete(
-                history=st.session_state.all_conversations[current_idx],
-                system_text=system_prompt,
-                client=client,
-                stream=True,
-                max_tokens=512,
-                max_retries=2,
-                timeout=30,
-            )
-
-            for chunk in response_gen:
-                acc += chunk
-
-            generation_time = time.time() - start_time
-
-            # Replace the thinking message with the actual response
-            st.session_state.all_conversations[current_idx][-1] = {
+if st.session_state.guided_phase == "active" and st.session_state.message_queue and not st.session_state.is_processing:
+    # Mark as processing to prevent interruption
+    st.session_state.is_processing = True
+    
+    # Get next message from queue
+    queued_msg = st.session_state.message_queue.pop(0)
+    user_input = queued_msg["user_input"]
+    msg_observation_idx = queued_msg["observation_idx"]
+    
+    # Ensure there's a "Thinking..." placeholder for this response
+    if not st.session_state.all_conversations[msg_observation_idx] or st.session_state.all_conversations[msg_observation_idx][-1]["content"] != "*Thinking...*":
+        st.session_state.all_conversations[msg_observation_idx].append(
+            {
                 "role": "assistant",
-                "content": acc.strip(),
+                "content": "*Thinking...*",
                 "timestamp": datetime.now().isoformat()
             }
+        )
+        sync_session_to_storage()
+    
+    # Generate AI response
+    current_q_data = st.session_state.question_bank[msg_observation_idx]
+    context = retrieve_context(user_input)
+    observation_context = format_observation_context(current_q_data)
+    system_prompt = (
+        build_system_prompt()
+        + f"\n\nCurrent Observation Being Discussed:\n{observation_context}\n\n"
+        f"Context from transcript:\n{context}"
+    )
 
-            # Log response
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            tokens_estimated = len(acc) // 4
-            analytics.ai_response(
-                username,
-                st.session_state.guided_session_id,
-                current_idx,
-                elapsed_seconds,
-                len(acc),
-                tokens_estimated,
-                generation_time,
-            )
+    try:
+        # Generate response
+        acc = ""
+        start_time = time.time()
 
-            sync_session_to_storage()
-            # Don't rerun - let message display on next timer tick
+        response_gen = OpenAIHandler.openai_complete(
+            history=st.session_state.all_conversations[msg_observation_idx],
+            system_text=system_prompt,
+            client=client,
+            stream=True,
+            max_tokens=512,
+            max_retries=2,
+            timeout=30,
+        )
 
-        except (APIRetryableError, APIPermanentError) as e:
-            error_msg = OpenAIHandler.format_error_message(e)
-            st.error(error_msg)
+        for chunk in response_gen:
+            acc += chunk
 
-            # Remove both user and thinking messages on error
-            st.session_state.all_conversations[current_idx].pop()
-            st.session_state.all_conversations[current_idx].pop()
-            sync_session_to_storage()
+        generation_time = time.time() - start_time
 
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            analytics.error_occurred(
-                username,
-                st.session_state.guided_session_id,
-                type(e).__name__,
-                str(e),
-                elapsed_seconds,
-                {"context": "ai_response", "observation_idx": current_idx},
-            )
+        # Replace the thinking message with the actual response
+        st.session_state.all_conversations[msg_observation_idx][-1] = {
+            "role": "assistant",
+            "content": acc.strip(),
+            "timestamp": datetime.now().isoformat()
+        }
 
-            logger.error(f"API error in observation {current_idx}: {e}")
+        # Log response
+        if st.session_state.guided_session_start is not None:
+            elapsed_seconds = (
+                datetime.now() - st.session_state.guided_session_start
+            ).total_seconds()
+        else:
+            elapsed_seconds = 0
+        tokens_estimated = len(acc) // 4
+        analytics.ai_response(
+            username,
+            st.session_state.guided_session_id,
+            msg_observation_idx,
+            elapsed_seconds,
+            len(acc),
+            tokens_estimated,
+            generation_time,
+        )
 
-        except Exception as e:
-            error_msg = "Unexpected error. Please try again."
-            st.error(error_msg)
+        sync_session_to_storage()
+        
+        # Mark processing complete
+        st.session_state.is_processing = False
+        
+        # If there are more messages in queue, continue processing
+        if st.session_state.message_queue:
+            st.rerun()
+        else:
+            st.rerun()  # Rerun to display the response
 
-            # Remove both user and thinking messages on error
-            st.session_state.all_conversations[current_idx].pop()
-            st.session_state.all_conversations[current_idx].pop()
-            sync_session_to_storage()
+    except (APIRetryableError, APIPermanentError) as e:
+        error_msg = OpenAIHandler.format_error_message(e)
+        st.error(error_msg)
 
-            if st.session_state.guided_session_start is not None:
-                elapsed_seconds = (
-                    datetime.now() - st.session_state.guided_session_start
-                ).total_seconds()
-            else:
-                elapsed_seconds = 0
-            analytics.error_occurred(
-                username,
-                st.session_state.guided_session_id,
-                type(e).__name__,
-                str(e),
-                elapsed_seconds,
-                {"context": "ai_response", "observation_idx": current_idx},
-            )
+        # Remove the thinking message on error (keep user message)
+        if st.session_state.all_conversations[msg_observation_idx] and st.session_state.all_conversations[msg_observation_idx][-1]["content"] == "*Thinking...*":
+            st.session_state.all_conversations[msg_observation_idx].pop()
+        sync_session_to_storage()
+        
+        # Mark processing complete
+        st.session_state.is_processing = False
 
-            logger.error(
-                f"Unexpected error in observation {current_idx}: {e}",
-                exc_info=True,
-            )
+        if st.session_state.guided_session_start is not None:
+            elapsed_seconds = (
+                datetime.now() - st.session_state.guided_session_start
+            ).total_seconds()
+        else:
+            elapsed_seconds = 0
+        analytics.error_occurred(
+            username,
+            st.session_state.guided_session_id,
+            type(e).__name__,
+            str(e),
+            elapsed_seconds,
+            {"context": "ai_response", "observation_idx": msg_observation_idx},
+        )
+
+        logger.error(f"API error in observation {msg_observation_idx}: {e}")
+        
+        # Continue with next message in queue if any
+        if st.session_state.message_queue:
+            st.rerun()
+
+    except Exception as e:
+        error_msg = "Unexpected error. Please try again."
+        st.error(error_msg)
+
+        # Remove the thinking message on error (keep user message)
+        if st.session_state.all_conversations[msg_observation_idx] and st.session_state.all_conversations[msg_observation_idx][-1]["content"] == "*Thinking...*":
+            st.session_state.all_conversations[msg_observation_idx].pop()
+        sync_session_to_storage()
+        
+        # Mark processing complete
+        st.session_state.is_processing = False
+
+        if st.session_state.guided_session_start is not None:
+            elapsed_seconds = (
+                datetime.now() - st.session_state.guided_session_start
+            ).total_seconds()
+        else:
+            elapsed_seconds = 0
+        analytics.error_occurred(
+            username,
+            st.session_state.guided_session_id,
+            type(e).__name__,
+            str(e),
+            elapsed_seconds,
+            {"context": "ai_response", "observation_idx": msg_observation_idx},
+        )
+
+        logger.error(
+            f"Unexpected error in observation {msg_observation_idx}: {e}",
+            exc_info=True,
+        )
+        
+        # Continue with next message in queue if any
+        if st.session_state.message_queue:
+            st.rerun()
 
     # Don't auto-transition to review - user must click Next button
 
@@ -1446,7 +1493,28 @@ elif st.session_state.guided_phase == "review":
             st.warning("That looks like the same message. Please type something new.")
         elif is_near_duplicate:
             st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
+        elif st.session_state.is_processing:
+            # Queue the message if still processing a prior one
+            st.session_state.message_queue.append({
+                "user_input": user_input,
+                "observation_idx": current_idx,
+                "timestamp": datetime.now().isoformat(),
+                "phase": "review"
+            })
+            st.session_state.all_conversations[current_idx].append(
+                {
+                    "role": "user",
+                    "content": user_input,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            st.info("Your message has been queued and will be processed shortly.")
+            sync_session_to_storage()
+            st.rerun()
         else:
+            # Mark as processing
+            st.session_state.is_processing = True
+            
             # Add to history WITH TIMESTAMP
             st.session_state.all_conversations[current_idx].append(
                 {
@@ -1532,7 +1600,15 @@ elif st.session_state.guided_phase == "review":
                     )
                     
                     sync_session_to_storage()
-                    st.rerun()
+                    
+                    # Mark processing complete
+                    st.session_state.is_processing = False
+                    
+                    # Process next queued message if any
+                    if st.session_state.message_queue:
+                        st.rerun()
+                    else:
+                        st.rerun()
                 
                 except (APIRetryableError, APIPermanentError) as e:
                     error_msg = OpenAIHandler.format_error_message(e)
@@ -1541,6 +1617,9 @@ elif st.session_state.guided_phase == "review":
                     # Remove the user message to keep state clean
                     st.session_state.all_conversations[current_idx].pop()
                     sync_session_to_storage()
+                    
+                    # Mark processing complete
+                    st.session_state.is_processing = False
                     
                     if st.session_state.guided_session_start is not None:
                         elapsed_seconds = (
@@ -1558,6 +1637,10 @@ elif st.session_state.guided_phase == "review":
                     )
                     
                     logger.error(f"API error in open chat: {e}")
+                    
+                    # Process next queued message if any
+                    if st.session_state.message_queue:
+                        st.rerun()
                 
                 except Exception as e:
                     error_msg = "Unexpected error. Please try again."
@@ -1566,6 +1649,9 @@ elif st.session_state.guided_phase == "review":
                     # Remove the user message
                     st.session_state.all_conversations[current_idx].pop()
                     sync_session_to_storage()
+                    
+                    # Mark processing complete
+                    st.session_state.is_processing = False
                     
                     if st.session_state.guided_session_start is not None:
                         elapsed_seconds = (
@@ -1586,6 +1672,10 @@ elif st.session_state.guided_phase == "review":
                         f"Unexpected error in open chat: {e}",
                         exc_info=True,
                     )
+                    
+                    # Process next queued message if any
+                    if st.session_state.message_queue:
+                        st.rerun()
 
 # ==================== COMPLETE PHASE ====================
 
