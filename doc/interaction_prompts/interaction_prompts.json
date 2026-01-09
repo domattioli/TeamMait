@@ -1,53 +1,52 @@
 {
   "feedback_items": [
     {
-      "id": "item_2",
-      "style": "evidence_only_reflection",
-      "title": "Evidence-Only Reflection",
-      "summary": "SUDS ratings are obtained repeatedly throughout the imaginal exposure.",
-      "observation": "",
+      "id": "item_1",
+      "role": "Analyst",
+      "description": "observation & evidence",
+      "summary": "Repeated SUDS monitoring during imaginal exposure.",
+      "observation": "The therapist elicits SUDS ratings repeatedly during the imaginal exposure.",
       "evidence": [
-        "Before exposure begins, the therapist requests a SUDS rating (\u201cHow distressed are you right now?\u201d), and the client reports \u201c40.\u201d",
-        "As tension rises in the crowd, the therapist asks again, and the client reports \u201c60.\u201d",
-        "When describing being stepped on and exposed to tear gas, the therapist asks again, and the client reports \u201c80. Maybe higher.\u201d",
-        "After being struck with a baton, the therapist asks for another rating, and the client reports \u201c95.\u201d",
-        "In the police van, another SUDS check occurs, and the client again reports \u201c95.\u201d",
-        "In the jail cell, the therapist checks SUDS and the client reports \u201c90.\u201d",
-        "Near release, the therapist checks SUDS, and the client reports \u201c75.\u201d"
+        "Pre-exposure: SUDS = \"40.\"",
+        "Crowd escalation: SUDS = \"60.\"",
+        "Tear gas exposure: SUDS = \"80. Maybe higher.\"",
+        "After baton strike: SUDS = \"95.\"",
+        "After being pushed toward the police van: SUDS = \"95.\"",
+        "In the jail cell: SUDS = \"90.\"",
+        "After release and leaving the station: SUDS = \"75.\""
       ],
       "evaluation": "",
       "suggestion": "",
-      "justification": "These repeated SUDS checks align with the general expectation that distress levels are monitored throughout imaginal exposure.",
       "conceptual_focus": "suds_monitoring"
     },
     {
-      "id": "item_3",
-      "style": "evidence_based_evaluation",
-      "title": "Evidence-Based Evaluation",
-      "summary": "The therapist\u2019s prompting of internal experience and reinforcing comments is adequate and consistently demonstrated in this segment.",
-      "observation": "",
+      "id": "item_2",
+      "role": "Evaluator",
+      "description": "observation, evidence & assessment",
+      "summary": "Adequate engagement with internal experience during exposure.",
+      "observation": "The therapist consistently prompts physiological, emotional, and cognitive experience and provides reinforcing statements during imaginal recounting.",
       "evidence": [
-        "Reinforcing comments appear throughout the exposure, including: \u201cYou\u2019re doing well\u201d, \u201cYou\u2019re doing great\u201d, \u201cRemember, you\u2019re here in the room with me\u201d, and \u201cYou\u2019ve done really well.\u201d",
-        "The therapist elicits physiological sensations multiple times: \u201cWhat are you feeling in your body?\u201d, \u201cWhat\u2019s happening in your body?\u201d, prompting reports of chest tightness, sweating, heart racing, shallow breathing, and shaking.",
-        "The therapist invites emotional and cognitive content: \u201cWhat are you feeling now?\u201d, \u201cStay with those thoughts. What happens next?\u201d, eliciting anger, fear, confusion, and worries about safety and consequences."
+        "Reinforcement: \"You’re doing well,\" \"You’re doing great,\" \"You’ve done really well.\"",
+        "Physiology prompts: \"What are you feeling in your body?\" and \"What’s happening in your body?\"",
+        "Cognitive prompt: \"Stay with it. What are you thinking?\"",
+        "Emotion prompts: \"What are you feeling now?\" and \"Stay with those thoughts. What happens next?\""
       ],
-      "evaluation": "",
+      "evaluation": "These behaviors are consistent with PE expectations for maintaining engagement during imaginal exposure.",
       "suggestion": "",
-      "justification": "These behaviors match the general expectation that therapists encourage engagement with internal experience and support the client's continued involvement during imaginal recounting.",
       "conceptual_focus": "reinforcement_and_therapist_engagement"
     },
     {
-      "id": "item_4",
-      "style": "actionable_training_prescription",
-      "title": "Actionable Training Prescription",
-      "summary": "Introduce a brief, intentional processing segment immediately after the imaginal recounting. Consider adding a short, intentional processing segment after the imaginal recounting, such as a few focused questions about what stood out most or how the client is making sense of the experience now.",
-      "observation": "",
+      "id": "item_3",
+      "role": "Digital Colleague",
+      "description": "observation, evidence, assessment & prescription",
+      "summary": "Opportunity to strengthen post-exposure processing.",
+      "observation": "Following imaginal exposure, the therapist validates the client’s experience and proceeds to session closure without an explicit processing segment.",
       "evidence": [
-        "After SUDS decrease and the client notes feeling both \u201cbroken\u201d and \u201cstronger,\u201d the therapist offers validation (\u201cThat\u2019s normal. You\u2019ve been very brave today\u201d) and then moves directly into closing procedures (deep breathing and ending the session)."
+        "After the client reports feeling \"broken,\" the therapist validates and orients the client back to the room.",
+        "After the client later reports feeling \"stronger for having faced this,\" the therapist initiates end-of-session breathing and closure."
       ],
-      "evaluation": "",
-      "suggestion": "",
-      "justification": "Once the client reports feeling more present and describes feeling both distressed and stronger after the exposure, the session shifts quickly to validation and closure. A brief period of guided meaning-making would align with the broader expectation that therapists help clients articulate what they learned or noticed following imaginal work.",
+      "evaluation": "The transition to closure is appropriate but leaves limited space for explicit meaning-making.",
+      "suggestion": "Add a brief processing segment after exposure (for example, what stood out most or how the client is interpreting the experience) to support learning consolidation.",
       "conceptual_focus": "processing_after_imaginal_exposure"
     }
   ]
