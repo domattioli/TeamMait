@@ -13,7 +13,7 @@ st.title("Post-Session Survey")
 st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Please complete the external Qualtrics survey and then mark this page as done before proceeding.</p>", unsafe_allow_html=True)
 st.markdown("<p style='font-size:12px;margin-top:6px;'><strong style='color:#6b7280;'>Privacy Reminder:</strong><span style='color:#e11d48;'> Please do not include any identifying information in your survey responses.</span></p>", unsafe_allow_html=True)
 
-st.markdown("[Click here to take the Qualtrics survey](https://pennstate.yul1.qualtrics.com/jfe/preview/previewId/c3b97084-8388-451b-9d98-ca2cc3d382c2/SV_3xcIeU2EhzzIdQa?Q_CHL=preview&Q_SurveyVersionID=current)" )
+st.markdown("[Click here to take the Qualtrics survey](https://pennstate.qualtrics.com/jfe/form/SV_0pPPg0tAmtv31si)" )
 
 # Initialize completion status if it doesn't exist
 if "completion_status" not in st.session_state:
