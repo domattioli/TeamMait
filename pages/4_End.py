@@ -256,7 +256,6 @@ def build_export():
         ),
     }
 
-    export["disclaimer"] = "TeamMait may be incorrect or incomplete. Verify important clinical, legal, or safety-related information independently before acting."
     return session_name, json.dumps(export, indent=2)
 
 
@@ -377,7 +376,7 @@ if clicked:
                 gs = gspread.authorize(creds_obj)
                 sheet = gs.open(sheet_name).sheet1
                 sheet.append_row([json_data, datetime.now().isoformat()])
-                st.success("✅ Your responses have been saved. Thank you for participating!")
+                st.success("Data successfully saved for research use.")
                 
                 # Offer clean transcript download to participants
                 st.download_button(
