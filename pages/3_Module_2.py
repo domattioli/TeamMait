@@ -599,13 +599,21 @@ def format_observation_context(item: Dict) -> str:
     if justification:
         parts.append(f"**Assessment:** {justification}")
     
-    # Evidence
+    # Evidence - handle both dict format (with text/line) and string format
     evidence = item.get("evidence", [])
-    if evidence and isinstance(evidence, list) and any(e.strip() for e in evidence):
-        parts.append("**Evidence:**")
-        for ev in evidence:
-            if isinstance(ev, str) and ev.strip():
-                parts.append(f"  - {ev}")
+    if evidence and isinstance(evidence, list):
+        def get_evidence_text(ev):
+            if isinstance(ev, dict):
+                return ev.get("text", "").strip()
+            elif isinstance(ev, str):
+                return ev.strip()
+            return ""
+        
+        valid_evidence = [get_evidence_text(e) for e in evidence if get_evidence_text(e)]
+        if valid_evidence:
+            parts.append("**Evidence:**")
+            for ev_text in valid_evidence:
+                parts.append(f"  - {ev_text}")
     
     # Evaluation
     evaluation = item.get("evaluation", "").strip()
