@@ -1428,14 +1428,41 @@ elif st.session_state.guided_phase == "review":
     st.markdown("## Review: Discussion Summary")
     st.divider()
     
-    for obs_idx in range(len(st.session_state.question_bank)):
+    total_observations = len(st.session_state.question_bank)
+    for obs_idx in range(total_observations):
         obs_item = st.session_state.question_bank[obs_idx]
         obs_title = obs_item.get("title", f"Observation {obs_idx + 1}")
         
-        with st.expander(f"**Observation {obs_idx + 1}**: {obs_title}", expanded=False):
-            # First, display the original observation
-            st.markdown("**Original Observation:**")
-            render_feedback_item(obs_item)
+        with st.expander(f"**Item {obs_idx + 1} of {total_observations}**: {obs_title}", expanded=False):
+            # Display observation text
+            observation = obs_item.get("observation", "").strip()
+            if observation:
+                st.markdown(observation)
+            
+            # Display evidence
+            evidence = obs_item.get("evidence", [])
+            if evidence and isinstance(evidence, list):
+                def format_evidence_item(ev):
+                    if isinstance(ev, dict):
+                        text = ev.get("text", "").strip()
+                        if "line" in ev:
+                            return f'"{text}" (line {ev["line"]})'
+                        elif "lines" in ev:
+                            lines_str = ", ".join(str(l) for l in ev["lines"])
+                            return f'"{text}" (lines {lines_str})'
+                        return f'"{text}"' if text else ""
+                    elif isinstance(ev, str):
+                        return ev
+                    return ""
+                
+                valid_evidence = [format_evidence_item(e) for e in evidence if (isinstance(e, dict) and e.get("text", "").strip()) or (isinstance(e, str) and e.strip())]
+                if valid_evidence:
+                    if len(valid_evidence) == 1:
+                        st.markdown(f"**Evidence:** {valid_evidence[0]}")
+                    else:
+                        with st.expander(f"**Evidence** ({len(valid_evidence)} items)", expanded=False):
+                            for ev in valid_evidence:
+                                st.markdown(f"- {ev}")
             
             st.divider()
             
