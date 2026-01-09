@@ -709,7 +709,7 @@ def generate_observations_summary(conversations: Dict, client: any) -> str:
 # ==================== STREAMLIT APP ====================
 
 st.set_page_config(
-    page_title="Module 2",
+    page_title="Module 2: TeamMait-Led Review of Session Transcript",
     page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",

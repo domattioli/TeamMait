@@ -97,6 +97,14 @@ if st.session_state.is_test_user and "test_api_key" not in st.session_state:
                 st.session_state.test_api_key = api_key_input
                 st.rerun()
 
+# If test user has API key, show option to reset it
+if st.session_state.is_test_user and "test_api_key" in st.session_state:
+    with st.expander("🔑 API Key Settings"):
+        st.write("Your OpenAI API key is set.")
+        if st.button("Reset API Key", type="secondary"):
+            del st.session_state.test_api_key
+            st.rerun()
+
 # (sidebar navigation removed)
 
 # ---------- Main Page Content ----------
@@ -112,30 +120,7 @@ st.markdown("""
 
 ### Welcome!
 - TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
-- Please read the instructions **and** consent form below before proceeding.
-            
-# Instructions
-- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
-- For each of the two modules you can find a PE session transcript in the left side panel of the page.**
-- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
-- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
-
-#### Module 1               ~ 15-20 minutes
-- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
-- **Natural Conversation**: TeamMait responds when you initiate questions.
-- Use TeamMait however feels natural for your evaluation process
-- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
-
-#### Qualtrics Survey       ~ 5 minutes
-            
-#### Module 2               ~ 20 minutes
-- TeamMait will share prepared observations about notable aspects of the transcript.
-- Progress through observations at your own pace.
-- Again, feel free to request TeamMait to expand on anything offers to you.
-            
-#### Qualitative Interview  ~ 10-15 minutes
-- Complete a short interview to explore your experience with TeamMait.
----
+- Please read the consent form below before proceeding.
 
 ---
 
@@ -164,12 +149,51 @@ st.markdown("""
 **By checking the consent box, you acknowledge that you have read and understood this information and agree to participate in this research study.**
 """)
 
-st.markdown(
-    "<p style='font-size: 14px; color: #6b7280; margin-top: 16px;'>"
-    "Click the <strong>Module 1</strong> tab in the left sidebar to continue."
-    "</p>",
-    unsafe_allow_html=True
-)
+# Consent checkbox
+consent = st.checkbox("I have read and agree to the consent form above.", key="consent_checkbox")
+
+if consent:
+    st.session_state.user_info["consent_given"] = True
+    st.session_state.user_info["consent_timestamp"] = datetime.now().isoformat()
+    st.markdown(
+        "<p style='font-size: 20px; font-weight: bold; color: #059669; margin-top: 16px;'>"
+        "✓ Click the <strong>Module 1</strong> tab in the left sidebar to continue."
+        "</p>",
+        unsafe_allow_html=True
+    )
+    
+    # Collapsible instructions panel
+    with st.expander("📋 Instructions (click to expand)"):
+        st.markdown("""
+### Study Overview
+- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
+- For each of the two modules you can find a PE session transcript in the left side panel of the page.
+- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
+- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
+
+#### Module 1 ~ 15-20 minutes
+- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
+- **Natural Conversation**: TeamMait responds when you initiate questions.
+- Use TeamMait however feels natural for your evaluation process
+- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
+
+#### Qualtrics Survey ~ 5 minutes
+            
+#### Module 2 ~ 20 minutes
+- TeamMait will share prepared observations about notable aspects of the transcript.
+- Progress through observations at your own pace.
+- Again, feel free to request TeamMait to expand on anything offers to you.
+            
+#### Qualitative Interview ~ 10-15 minutes
+- Complete a short interview to explore your experience with TeamMait.
+        """)
+else:
+    st.markdown(
+        "<p style='font-size: 18px; color: #6b7280; margin-top: 16px;'>"
+        "Please check the consent box above to continue."
+        "</p>",
+        unsafe_allow_html=True
+    )
 
 # ---------- Footer ----------
 st.divider()
