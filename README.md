@@ -188,12 +188,7 @@ username2 = "password2"
 
 ## Deployment
 
-### Local Development
-```bash
-streamlit run Home.py
-```
-
-### Production Deployment
+### Production
 - Configure environment variables for OpenAI API
 - Ensure proper file permissions for `rag_store/` directory
 - Set up secure user authentication
