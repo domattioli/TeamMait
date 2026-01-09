@@ -10,6 +10,7 @@ import gspread
 from sentence_transformers import SentenceTransformer
 import sys
 import glob
+from utils.input_parser import MessageBuffer
 
 # ---------- SQLite shim for Chroma ----------
 try:
@@ -117,6 +118,9 @@ if "messages" not in st.session_state:
             "display_name": "TeamMait",
         }
     ]
+
+if "message_buffer" not in st.session_state:
+    st.session_state.message_buffer = MessageBuffer()
 if "errors" not in st.session_state:
     st.session_state.errors = []
 
@@ -546,20 +550,28 @@ for m in st.session_state.messages:
 
 prompt = st.chat_input("Talk to your TeamMait here...")
 if prompt is not None and prompt.strip() != "":
-    # Add user message with timestamp
-    user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
-    st.session_state.messages.append(user_msg)
+    # Check for duplicate or near-duplicate messages
+    is_new, is_near_duplicate = st.session_state.message_buffer.add_message(prompt)
     
-    with st.chat_message("user"):
-        user_ts = now_ts()
-        st.caption(f"_{user_ts.split('T')[1][:5]}_")  # Show time in HH:MM format
-        st.markdown(prompt)
-    
-    # Add thinking placeholder
-    thinking_msg = {"role": "assistant", "content": "*Thinking...*", "ts": now_ts()}
-    st.session_state.messages.append(thinking_msg)
-    
-    st.rerun()
+    if not is_new:
+        st.warning("⚠️ You just asked that. Please try a different question.")
+    elif is_near_duplicate:
+        st.info("ℹ️ You asked something very similar. Would you like to expand on that question or ask something different?")
+    else:
+        # Add user message with timestamp
+        user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
+        st.session_state.messages.append(user_msg)
+        
+        with st.chat_message("user"):
+            user_ts = now_ts()
+            st.caption(f"_{user_ts.split('T')[1][:5]}_")  # Show time in HH:MM format
+            st.markdown(prompt)
+        
+        # Add thinking placeholder
+        thinking_msg = {"role": "assistant", "content": "*Thinking...*", "ts": now_ts()}
+        st.session_state.messages.append(thinking_msg)
+        
+        st.rerun()
 
 # Continue processing if we have a thinking message at the end
 if (st.session_state.messages and 
