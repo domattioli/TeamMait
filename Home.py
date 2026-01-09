@@ -168,7 +168,7 @@ else:
         "</p>",
         unsafe_allow_html=True
     )
-
+st.divider()
 # Collapsible instructions panel (always visible)
 with st.expander("Instructions (click to expand)"):
     st.markdown("""
