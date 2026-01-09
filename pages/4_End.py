@@ -482,7 +482,7 @@ if clicked:
                 creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
                 gs = gspread.authorize(creds_obj)
                 sheet = gs.open(sheet_name).sheet1
-                sheet.append_row([json_data, datetime.now().isoformat()])
+                sheet.append_row([json_data])
                 st.success("Data successfully saved for research use.")
                 
                 # Offer clean transcript download to participants (PDF)
