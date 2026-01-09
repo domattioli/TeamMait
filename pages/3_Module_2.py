@@ -1058,7 +1058,7 @@ with st.sidebar:
 
 # ==================== MAIN CONTENT ====================
 
-st.title("Module 2")
+st.title("Module 2: TeamMait-Led Review of Session Transcript")
 st.markdown(
     "<p style='font-size:12px;color:#e11d48;margin-top:6px;'>"
     "<strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>",
