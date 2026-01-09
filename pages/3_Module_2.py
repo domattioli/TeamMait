@@ -255,6 +255,12 @@ def extract_text_from_docx(docx_path: str) -> str:
 def initialize_chroma():
     """Initialize ChromaDB client and collection with error handling."""
     try:
+        # Use preloaded resources if available (from Home page preload)
+        if "preloaded_collection" in st.session_state and "preloaded_chroma_client" in st.session_state:
+            logger.info("Using preloaded ChromaDB resources")
+            return st.session_state.preloaded_chroma_client, st.session_state.preloaded_collection
+        
+        # Fall back to loading normally
         embed_model = "sentence-transformers/all-MiniLM-L6-v2"
         embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name=embed_model
@@ -426,6 +432,13 @@ def retrieve_context(query: str, n_results: int = 5) -> str:
 
 def load_reference_conversation() -> List[str]:
     """Load the reference conversation for display."""
+    # Use preloaded version if available
+    if "module2_ref_conversation" in st.session_state:
+        data = st.session_state.module2_ref_conversation
+        if isinstance(data, dict) and "full_conversation" in data:
+            return data["full_conversation"]
+    
+    # Fall back to loading from file
     ref_path = os.path.join("doc/RAG", guided_interaction_conversation )
     if os.path.exists(ref_path):
         try:
