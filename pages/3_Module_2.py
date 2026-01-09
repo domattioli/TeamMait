@@ -1162,7 +1162,12 @@ elif st.session_state.guided_phase == "active":
                 )
 
                 # Check for duplicates and near-duplicates
-                is_new, is_near_duplicate = st.session_state.message_buffer.add_message(user_input)
+                # Handle both old (bool) and new (tuple) return types for session compatibility
+                result = st.session_state.message_buffer.add_message(user_input)
+                if isinstance(result, tuple):
+                    is_new, is_near_duplicate = result
+                else:
+                    is_new, is_near_duplicate = True, False
                 
                 if not is_new:
                     st.warning("That looks like the same message. Please type something new.")
@@ -1430,7 +1435,12 @@ elif st.session_state.guided_phase == "review":
         )
         
         # Check for duplicates and near-duplicates
-        is_new, is_near_duplicate = st.session_state.message_buffer.add_message(user_input)
+        # Handle both old (bool) and new (tuple) return types for session compatibility
+        result = st.session_state.message_buffer.add_message(user_input)
+        if isinstance(result, tuple):
+            is_new, is_near_duplicate = result
+        else:
+            is_new, is_near_duplicate = True, False
         
         if not is_new:
             st.warning("That looks like the same message. Please type something new.")
