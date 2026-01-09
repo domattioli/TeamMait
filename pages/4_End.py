@@ -2,9 +2,16 @@ import streamlit as st
 import json
 from datetime import datetime
 import json as _json
+from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from utils.session_manager import SessionManager
+
+try:
+    from fpdf import FPDF
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
 
 st.set_page_config(page_title="Finish Final", page_icon="")
 
@@ -277,35 +284,69 @@ def build_export():
 
 
 def build_participant_export():
-    """Build a clean export for participants - conversations only, no analytics."""
+    """Build a clean PDF export for participants - conversations only, no analytics."""
     session_name = f"teammait_transcript_{username}_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
     
-    export = {
-        "session_info": {
-            "app": "TeamMait",
-            "username": username,
-            "date": datetime.now().strftime("%B %d, %Y"),
-            "time": datetime.now().strftime("%I:%M %p"),
-        },
-        "conversations": {}
-    }
-
-    # Module 1: Open Chat - include if messages exist (more than just greeting)
+    if not PDF_AVAILABLE:
+        # Fallback to JSON if fpdf2 not available
+        return session_name, None, "json"
+    
+    # Create PDF
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+    
+    # Title
+    pdf.set_font("Helvetica", "B", 24)
+    pdf.set_text_color(31, 41, 55)  # Dark gray
+    pdf.cell(0, 15, "TeamMait Session Transcript", ln=True, align="C")
+    
+    # Subtitle with date/time
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(107, 114, 128)  # Gray
+    pdf.cell(0, 8, f"{datetime.now().strftime('%B %d, %Y')} at {datetime.now().strftime('%I:%M %p')}", ln=True, align="C")
+    pdf.ln(10)
+    
+    # Divider line
+    pdf.set_draw_color(229, 231, 235)
+    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.ln(8)
+    
+    has_content = False
+    
+    # Module 1: Open Chat
     open_chat_messages = st.session_state.get("messages", [])
     if len(open_chat_messages) > 1:
-        clean_messages = []
+        has_content = True
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(31, 41, 55)
+        pdf.cell(0, 10, "Module 1: Open Review", ln=True)
+        pdf.ln(3)
         
         for msg in open_chat_messages:
             if msg.get("role") in ("user", "assistant"):
-                clean_messages.append({
-                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
-                    "message": msg.get("content", ""),
-                })
+                speaker = "You" if msg.get("role") == "user" else "TeamMait"
+                content = msg.get("content", "")
+                
+                # Speaker name
+                if msg.get("role") == "user":
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_text_color(79, 70, 229)  # Indigo for user
+                else:
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_text_color(16, 185, 129)  # Green for TeamMait
+                
+                pdf.cell(0, 6, speaker, ln=True)
+                
+                # Message content
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_text_color(55, 65, 81)
+                pdf.multi_cell(0, 5, content)
+                pdf.ln(4)
         
-        if clean_messages:
-            export["conversations"]["Module 1 - Open Review"] = clean_messages
-
-    # Module 2: Guided Observations - include if data exists
+        pdf.ln(5)
+    
+    # Module 2: Guided Observations
     all_conversations = st.session_state.get("all_conversations", {})
     question_bank = st.session_state.get("question_bank", [])
     
@@ -314,32 +355,82 @@ def build_participant_export():
         obs_data = question_bank[obs_idx] if obs_idx < len(question_bank) else {}
         obs_title = obs_data.get("title", f"Observation {obs_idx + 1}")
         
-        clean_messages = []
-        for msg in obs_messages:
-            if msg.get("role") in ("user", "assistant"):
-                clean_messages.append({
-                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
-                    "message": msg.get("content", ""),
-                })
-        
-        if clean_messages:
-            export["conversations"][f"Module 2 - Item {obs_idx + 1}: {obs_title}"] = clean_messages
+        user_messages = [m for m in obs_messages if m.get("role") in ("user", "assistant")]
+        if user_messages:
+            has_content = True
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_text_color(31, 41, 55)
+            pdf.cell(0, 10, f"Module 2 - Item {obs_idx + 1}: {obs_title}", ln=True)
+            pdf.ln(3)
+            
+            for msg in obs_messages:
+                if msg.get("role") in ("user", "assistant"):
+                    speaker = "You" if msg.get("role") == "user" else "TeamMait"
+                    content = msg.get("content", "")
+                    
+                    if msg.get("role") == "user":
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(79, 70, 229)
+                    else:
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(16, 185, 129)
+                    
+                    pdf.cell(0, 6, speaker, ln=True)
+                    
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(55, 65, 81)
+                    pdf.multi_cell(0, 5, content)
+                    pdf.ln(4)
+            
+            pdf.ln(5)
     
     # Open chat from review phase
     open_chat = all_conversations.get("open_chat", [])
     if open_chat:
-        clean_open = []
-        for msg in open_chat:
-            if msg.get("role") in ("user", "assistant"):
-                clean_open.append({
-                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
-                    "message": msg.get("content", ""),
-                })
-        if clean_open:
-            export["conversations"]["Module 2 - Follow-up Discussion"] = clean_open
-
-    export["note"] = "This is a record of your conversation with TeamMait. Thank you for participating!"
-    return session_name, json.dumps(export, indent=2)
+        user_messages = [m for m in open_chat if m.get("role") in ("user", "assistant")]
+        if user_messages:
+            has_content = True
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_text_color(31, 41, 55)
+            pdf.cell(0, 10, "Module 2 - Follow-up Discussion", ln=True)
+            pdf.ln(3)
+            
+            for msg in open_chat:
+                if msg.get("role") in ("user", "assistant"):
+                    speaker = "You" if msg.get("role") == "user" else "TeamMait"
+                    content = msg.get("content", "")
+                    
+                    if msg.get("role") == "user":
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(79, 70, 229)
+                    else:
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(16, 185, 129)
+                    
+                    pdf.cell(0, 6, speaker, ln=True)
+                    
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(55, 65, 81)
+                    pdf.multi_cell(0, 5, content)
+                    pdf.ln(4)
+    
+    if not has_content:
+        pdf.set_font("Helvetica", "I", 11)
+        pdf.set_text_color(107, 114, 128)
+        pdf.cell(0, 10, "No conversations recorded.", ln=True, align="C")
+    
+    # Footer note
+    pdf.ln(10)
+    pdf.set_draw_color(229, 231, 235)
+    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_text_color(156, 163, 175)
+    pdf.multi_cell(0, 5, "This is a record of your conversation with TeamMait. Thank you for participating!", align="C")
+    
+    # Output PDF to bytes
+    pdf_bytes = pdf.output()
+    return session_name, pdf_bytes, "pdf"
 
 # Custom CSS for red save button
 st.markdown("""
@@ -366,7 +457,7 @@ clicked = st.button("Save Responses", type="primary")
 
 if clicked:
     session_name, json_data = build_export()
-    participant_name, participant_data = build_participant_export()
+    participant_name, participant_data, export_format = build_participant_export()
     
     # Only try Google Sheets for non-test users
     is_test_user = st.session_state.get("is_test_user", False)
@@ -394,14 +485,24 @@ if clicked:
                 sheet.append_row([json_data, datetime.now().isoformat()])
                 st.success("Data successfully saved for research use.")
                 
-                # Offer clean transcript download to participants
-                st.download_button(
-                    label="Download Your Conversation Transcript",
-                    data=participant_data,
-                    file_name=f"{participant_name}.json",
-                    mime="application/json",
-                    help="Download a copy of your conversations with TeamMait"
-                )
+                # Offer clean transcript download to participants (PDF)
+                if participant_data and export_format == "pdf":
+                    st.download_button(
+                        label="Download Your Conversation Transcript (PDF)",
+                        data=participant_data,
+                        file_name=f"{participant_name}.pdf",
+                        mime="application/pdf",
+                        help="Download a formatted PDF of your conversations with TeamMait"
+                    )
+                elif participant_data:
+                    # Fallback to JSON if PDF unavailable
+                    st.download_button(
+                        label="Download Your Conversation Transcript",
+                        data=participant_data,
+                        file_name=f"{participant_name}.json",
+                        mime="application/json",
+                        help="Download a copy of your conversations with TeamMait"
+                    )
             else:
                 st.warning("Could not save to Google Sheets. Please notify your proctor.")
         except Exception as e:
