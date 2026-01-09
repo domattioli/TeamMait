@@ -23,6 +23,10 @@ def load_valid_users():
 
 def validate_login(username, password):
     """Validate username and password against secrets"""
+    # Allow test/test for demo purposes
+    if username == "test" and password == "test":
+        return True
+    
     valid_users = load_valid_users()
     for user in valid_users:
         if user.get("username") == username and user.get("password") == password:
@@ -45,19 +49,53 @@ def get_user_details():
             st.error("Invalid credentials. Please try again.")
             return
         
-        st.session_state.user_info = {
-            "username": username,
-            "password": password,
-            "consent_given": None,
-            "consent_timestamp": None
-        }
-        st.session_state["username"] = username
-        st.session_state["password"] = password
-        st.rerun()
+        # If test user, prompt for API key
+        if username == "test" and password == "test":
+            st.session_state.is_test_user = True
+            st.session_state.user_info = {
+                "username": username,
+                "password": password,
+                "consent_given": None,
+                "consent_timestamp": None
+            }
+            st.session_state["username"] = username
+            st.session_state["password"] = password
+            st.rerun()
+        else:
+            st.session_state.is_test_user = False
+            st.session_state.user_info = {
+                "username": username,
+                "password": password,
+                "consent_given": None,
+                "consent_timestamp": None
+            }
+            st.session_state["username"] = username
+            st.session_state["password"] = password
+            st.rerun()
+
+# Handle test user API key prompt
+if "is_test_user" not in st.session_state:
+    st.session_state.is_test_user = False
 
 if "user_info" not in st.session_state:
     get_user_details()
     st.stop()
+
+# If test user and no API key provided yet, show prompt
+if st.session_state.is_test_user and "test_api_key" not in st.session_state:
+    st.info("ℹ️ You're running in **test mode**. You'll need to provide your own OpenAI API key to use Modules 1 and 2.")
+    with st.form("api_key_form"):
+        api_key_input = st.text_input(
+            "Enter your OpenAI API Key",
+            type="password",
+            help="Your key will only be used for this session and will not be saved."
+        )
+        if st.form_submit_button("Save API Key", type="primary"):
+            if not api_key_input or not api_key_input.startswith("sk-"):
+                st.error("Please enter a valid OpenAI API key (starts with 'sk-').")
+            else:
+                st.session_state.test_api_key = api_key_input
+                st.rerun()
 
 # (sidebar navigation removed)
 

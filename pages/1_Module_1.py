@@ -477,12 +477,17 @@ def get_openai_client():
     if OpenAI is None:
         st.error("openai package not installed. Run: pip install openai")
         return None
-    key = get_secret_then_env("OPENAI_API_KEY")
+    
+    # Check for test user API key first
+    if st.session_state.get("is_test_user") and st.session_state.get("test_api_key"):
+        key = st.session_state.get("test_api_key")
+    else:
+        key = get_secret_then_env("OPENAI_API_KEY")
+    
     if not key:
         st.error("Missing OPENAI_API_KEY. Set it in .streamlit/secrets.toml or as an environment variable.")
         return None
     return OpenAI(api_key=key)
-
 def to_anthropic_messages(history):
     converted = []
     for m in history:

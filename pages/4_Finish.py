@@ -222,19 +222,25 @@ if clicked:
     session_name, json_data = build_export()
     st.download_button(label="Download consolidated JSON", data=json_data, file_name=f"{session_name}.json", mime="application/json")
 
-    # Attempt to append to Google Sheets if configured
-    try:
-        creds = st.secrets.get("GOOGLE_CREDENTIALS")
-        sheet_name = st.secrets.get("SHEET_NAME")
-        if creds and sheet_name:
-            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-            creds_dict = _json.loads(creds)
-            creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-            gs = gspread.authorize(creds_obj)
-            sheet = gs.open(sheet_name).sheet1
-            sheet.append_row([json_data, datetime.now().isoformat()])
-            st.success("Saved and appended to Google Sheet.")
-        else:
-            st.info("Saved locally (download available). Google Sheets not configured.")
-    except Exception as e:
-        st.info(f"Saved locally. Google Sheets append failed or not configured: {e}")
+    # Only try Google Sheets for non-test users
+    is_test_user = st.session_state.get("is_test_user", False)
+    
+    if is_test_user:
+        st.info("✅ Test mode: Data downloaded. (Google Sheets integration not available for test users)")
+    else:
+        # Attempt to append to Google Sheets if configured
+        try:
+            creds = st.secrets.get("GOOGLE_CREDENTIALS")
+            sheet_name = st.secrets.get("SHEET_NAME")
+            if creds and sheet_name:
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                creds_dict = _json.loads(creds)
+                creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                gs = gspread.authorize(creds_obj)
+                sheet = gs.open(sheet_name).sheet1
+                sheet.append_row([json_data, datetime.now().isoformat()])
+                st.success("Saved and appended to Google Sheet.")
+            else:
+                st.info("Saved locally (download available). Google Sheets not configured.")
+        except Exception as e:
+            st.info(f"Saved locally. Google Sheets append failed or not configured: {e}")
