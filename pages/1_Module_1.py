@@ -602,7 +602,7 @@ if prompt is not None and prompt.strip() != "":
     if not is_new:
         st.warning("⚠️ You just asked that. Please try a different question.")
     elif is_near_duplicate:
-        st.info("ℹ️ You asked something very similar. Would you like to expand on that question or ask something different?")
+        st.info("You asked something very similar. Would you like to expand on that question or ask something different?")
     else:
         # Add user message with timestamp
         user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
