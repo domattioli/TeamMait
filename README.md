@@ -19,8 +19,6 @@ TeamMait provides four interaction modes for clinical supervision:
 - **Preloading**: Background loading of embeddings and ChromaDB on Home page for faster navigation
 - **Message Queue**: Sequential message processing prevents input loss during rapid interaction
 - **Line-Referenced Citations**: Precise transcript references with line numbers
-- **Session Management**: Persistent sessions with 2-hour timeout and 48-hour cleanup
-- **Analytics Logging**: Event logging to `logs/session_analytics.jsonl`
 
 ### User Interface
 - **Consent Integration**: Consent form on landing page with checkbox requirement
@@ -113,17 +111,6 @@ streamlit run Home.py
 - Users discuss, skip, or advance through observations using the **⏩ Next** button
 - Review phase allows revisiting all observations and requesting summaries
 
-**Observation JSON structure:**
-```json
-{
-  "style": "evidence_based_evaluation",
-  "title": "Brief title",
-  "assertion": "Main observation",
-  "evidence": [{"text": "Quote from transcript", "line": 42}],
-  "justification": "Why this matters"
-}
-```
-
 #### Survey & Completion
 - External Qualtrics survey for feedback
 - Session completion with data export
@@ -145,14 +132,11 @@ TeamMait operates with strict guidelines:
 - **Near-Duplicate Detection**: Warns users when submitting similar questions (>90% similarity)
 - **Navigation Intent**: Detects phrases like "next" and redirects to the Next button
 
-### Session Management
+### Session & Data Management
 - **Persistent Storage**: Sessions saved to `user_sessions/` directory
 - **Session Timeout**: 2-hour inactivity timeout
 - **Session Cleanup**: Expired sessions removed after 48 hours
 - **Metadata Tracking**: Phase, observation index, message counts
-
-### Data Management
-- **Session Persistence**: State maintained across page navigation
 - **Analytics Logging**: Events logged to `logs/session_analytics.jsonl`
 - **Export Functionality**: JSON format with timestamps, metadata, and conversation history
 - **Google Sheets Integration**: Automatic export for non-test users
