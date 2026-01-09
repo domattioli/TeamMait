@@ -23,8 +23,8 @@ def load_valid_users():
 
 def validate_login(username, password):
     """Validate username and password against secrets"""
-    # Allow ***REMOVED***/***REMOVED*** for demo purposes
-    if username == "***REMOVED***" and password == "***REMOVED***":
+    # Allow ***REMOVED*** mode for demo purposes
+    if username == "***REMOVED*** mode" and password == "***REMOVED***":
         return True
     
     valid_users = load_valid_users()
@@ -50,7 +50,7 @@ def get_user_details():
             return
         
         # If ***REMOVED*** user, prompt for API key
-        if username == "***REMOVED***" and password == "***REMOVED***":
+        if username == "***REMOVED*** mode" and password == "***REMOVED***":
             st.session_state.is_***REMOVED***_user = True
             st.session_state.user_info = {
                 "username": username,
