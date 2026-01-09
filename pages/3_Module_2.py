@@ -129,7 +129,12 @@ def get_openai_client():
         st.error("System configuration error: OpenAI package not installed.")
         st.stop()
 
-    key = get_secret_then_env("OPENAI_API_KEY")
+    # Check for ***REMOVED*** user API key first
+    if st.session_state.get("is_***REMOVED***_user") and st.session_state.get("***REMOVED***_api_key"):
+        key = st.session_state.get("***REMOVED***_api_key")
+    else:
+        key = get_secret_then_env("OPENAI_API_KEY")
+    
     if not key:
         logger.error("Missing OPENAI_API_KEY")
         st.error(
