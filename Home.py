@@ -157,7 +157,7 @@ if consent:
     st.session_state.user_info["consent_timestamp"] = datetime.now().isoformat()
     st.markdown(
         "<p style='font-size: 20px; font-weight: bold; color: #059669; margin-top: 16px;'>"
-        "Click the <strong>Module 1</strong> tab in the left sidebar to continue."
+        "Click the '<u><strong>Module 1</strong></u>' tab in the left sidebar to continue."
         "</p>",
         unsafe_allow_html=True
     )

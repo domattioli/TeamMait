@@ -643,14 +643,14 @@ def render_feedback_item(item: Dict) -> None:
         # Handle both new format (dict with text/line) and old format (just string)
         def format_evidence_item(ev):
             if isinstance(ev, dict):
-                text = ev.get("text", "")
-                # Handle single line or multiple lines
+                text = ev.get("text", "").strip()
+                # Handle single line or multiple lines - APA style at end
                 if "line" in ev:
-                    return f"[Line {ev['line']}] {text}"
+                    return f'"{text}" (line {ev["line"]})'
                 elif "lines" in ev:
                     lines_str = ", ".join(str(l) for l in ev["lines"])
-                    return f"[Lines {lines_str}] {text}"
-                return text
+                    return f'"{text}" (lines {lines_str})'
+                return f'"{text}"' if text else ""
             elif isinstance(ev, str):
                 return ev
             return ""
