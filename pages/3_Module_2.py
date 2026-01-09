@@ -1081,22 +1081,9 @@ with st.sidebar:
     )
     st.session_state["include_guided_interaction"] = persistent_value
 
-    def _on_include_guided_change():
-        current_value = st.session_state.get("include_guided_interaction", False)
-        st.session_state["completion_status"]["guided_interaction"] = current_value
-
-    st.checkbox(
-        "Check this when done",
-        key="include_guided_interaction",
-        on_change=_on_include_guided_change,
-    )
+    # Checkbox removed - completion status tracked automatically
     
-    # Reminder when time is running low or expired
-    if time_expired or (remaining.total_seconds() < 300 and st.session_state.guided_phase in ("active", "review")):
-        st.info(
-            "**Reminder:** Don't forget to check the "
-            "**'Check this when done'** checkbox above when you finish!"
-        )
+
     
     # Start button (only in intro phase)
     if st.session_state.guided_phase == "intro":
@@ -1639,11 +1626,7 @@ elif st.session_state.guided_phase == "expired":
             sync_session_to_storage()
             st.rerun()
     
-    # Reminder
-    st.info(
-        "**Reminder:** Don't forget to check the "
-        "**'Check this when done'** checkbox in the sidebar!"
-    )
+    # Results are saved automatically when completing the session
 
 # ==================== REVIEW PHASE ====================
 elif st.session_state.guided_phase == "review":
@@ -1732,7 +1715,7 @@ elif st.session_state.guided_phase == "review":
         st.info(
             f"You have **{remaining_min}:{remaining_sec:02d}** remaining. "
             "Feel free to discuss any other aspects of the session, ask questions, or share additional thoughts. "
-            "When you're done, check the **'Check this when done'** box to save your results."
+            "When you're done, your results will be saved automatically."
         )
         
         # Display conversation history WITH TIMESTAMPS

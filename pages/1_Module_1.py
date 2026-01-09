@@ -158,14 +158,7 @@ with st.sidebar:
     persistent_value = st.session_state["completion_status"].get("open_chat", False)
     st.session_state["include_open_chat"] = persistent_value
 
-    def _on_include_open_change():
-        from utils.streamlit_compat import debug_trace
-        # Update the persistent completion tracker when checkbox changes
-        current_value = st.session_state.get("include_open_chat", False)
-        st.session_state["completion_status"]["open_chat"] = current_value
-        debug_trace("completion_status.open_chat", current_value, "Open Chat")
-
-    st.checkbox("Check this when done", key="include_open_chat", on_change=_on_include_open_change)
+    # Checkbox removed - completion status tracked automatically
 
     # st.divider()
     # ---------- Chroma initialization (after login) ----------
