@@ -162,16 +162,23 @@ with st.sidebar:
 
     # st.divider()
     # ---------- Chroma initialization (after login) ----------
-    embed_model = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
+    # Use preloaded resources if available (from Home page preload)
+    if "preloaded_embedding_fn" in st.session_state and "preloaded_collection" in st.session_state:
+        embedding_fn = st.session_state.preloaded_embedding_fn
+        chroma_client = st.session_state.preloaded_chroma_client
+        collection = st.session_state.preloaded_collection
+    else:
+        # Fall back to loading normally if not preloaded
+        embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+        embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
 
-    chroma_client = chromadb.PersistentClient(
-        path="./rag_store",
-        settings=Settings(),
-        tenant=DEFAULT_TENANT,
-        database=DEFAULT_DATABASE,
-    )
-    collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+        chroma_client = chromadb.PersistentClient(
+            path="./rag_store",
+            settings=Settings(),
+            tenant=DEFAULT_TENANT,
+            database=DEFAULT_DATABASE,
+        )
+        collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
 
     def extract_text_from_docx(docx_path: str) -> str:
         """Extract text content from a DOCX file."""
@@ -333,7 +340,7 @@ st.markdown(
 )
 
 st.markdown("<div class='app-container'>", unsafe_allow_html=True)
-st.title("TeamMait Private Conversation")
+st.title("Module 1: Open-Review a Session with TeamMait")
 st.markdown("<p style='font-size:12px;color:#e11d48;margin-top:6px;'><strong>Privacy Reminder:</strong> Please do not include any identifying information in your messages.</p>", unsafe_allow_html=True)
 st.markdown("<p style='font-size:12px;color:#6b7280;margin-bottom:6px;'>Disclaimer: TeamMait may be incorrect or incomplete. Please verify information..</p>", unsafe_allow_html=True)
 

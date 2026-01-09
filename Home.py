@@ -170,7 +170,7 @@ else:
     )
 
 # Collapsible instructions panel (always visible)
-with st.expander("📋 Instructions (click to expand)"):
+with st.expander("Instructions (click to expand)"):
     st.markdown("""
 ### Study Overview
 - You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
@@ -202,10 +202,12 @@ st.divider()
 st.caption(f"Logged in as: **{st.session_state['username']}**")
 
 
-# Preload Module 2 data in background when user is on Home page
+# Preload Module data in background when user is on Home page
 if st.session_state.username:
-    try:
-        from utils.module_preload import preload_all_modules
-        preload_all_modules()
-    except:
-        pass  # Preload is optional
+    if "all_modules_preloaded" not in st.session_state:
+        with st.spinner("Preparing modules..."):
+            try:
+                from utils.module_preload import preload_all_modules
+                preload_all_modules()
+            except Exception as e:
+                pass  # Preload is optional - modules will load normally
