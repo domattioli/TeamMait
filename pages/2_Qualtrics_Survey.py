@@ -9,8 +9,8 @@ if "user_info" not in st.session_state:
 
 username = st.session_state["user_info"]["username"]
 
-st.title("Post-Session Survey")
-st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Please complete the external Qualtrics survey and then mark this page as done before proceeding.</p>", unsafe_allow_html=True)
+st.title("Demographics Survey")
+st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Please complete the external Qualtrics survey below and let your proctor know when you're finished.</p>", unsafe_allow_html=True)
 st.markdown("<p style='font-size:12px;margin-top:6px;'><strong style='color:#6b7280;'>Privacy Reminder:</strong><span style='color:#e11d48;'> Please do not include any identifying information in your survey responses.</span></p>", unsafe_allow_html=True)
 
 st.markdown("[Click here to take the Qualtrics survey](https://pennstate.qualtrics.com/jfe/form/SV_0pPPg0tAmtv31si)" )
