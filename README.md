@@ -8,8 +8,8 @@ A peer-support assistant designed to help expert clinicians review and analyze P
 TeamMait provides four interaction modes for clinical supervision:
 1. **Module 1 (Open Chat)**: Free-form conversation about a therapy transcript
 2. **Module 2 (Guided Observations)**: Structured observations with evidence and discussion
-3. **Survey**: External Qualtrics survey for feedback collection
-4. **Finish**: Session completion and data export
+3. **Survey**: External Qualtrics survey for demographics collection
+4. **End**: Session completion and data export
 
 ## Features
 
