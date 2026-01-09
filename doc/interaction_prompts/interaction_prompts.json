@@ -9,13 +9,13 @@
       "summary": "Repeated SUDS monitoring during imaginal exposure.",
       "observation": "The therapist elicits SUDS ratings repeatedly during the imaginal exposure.",
       "evidence": [
-        "Pre-exposure: SUDS = \"40.\"",
-        "Crowd escalation: SUDS = \"60.\"",
-        "Tear gas exposure: SUDS = \"80. Maybe higher.\"",
-        "After baton strike: SUDS = \"95.\"",
-        "After being pushed toward the police van: SUDS = \"95.\"",
-        "In the jail cell: SUDS = \"90.\"",
-        "After release and leaving the station: SUDS = \"75.\""
+        {"text": "Pre-exposure: SUDS = \"40.\"", "line": 45},
+        {"text": "Crowd escalation: SUDS = \"60.\"", "line": 89},
+        {"text": "Tear gas exposure: SUDS = \"80. Maybe higher.\"", "line": 112},
+        {"text": "After baton strike: SUDS = \"95.\"", "line": 134},
+        {"text": "After being pushed toward the police van: SUDS = \"95.\"", "line": 156},
+        {"text": "In the jail cell: SUDS = \"90.\"", "line": 178},
+        {"text": "After release and leaving the station: SUDS = \"75.\"", "line": 201}
       ],
       "evaluation": "",
       "suggestion": "",
@@ -27,14 +27,14 @@
       "style": "evidence_based_evaluation",
       "title": "Engagement with Internal Experience",
       "role": "Evaluator",
-      "description": "observation, evidence & assessment",
+      "description": "observation & evidence & assessment",
       "summary": "Adequate engagement with internal experience during exposure.",
       "observation": "The therapist consistently prompts physiological, emotional, and cognitive experience and provides reinforcing statements during imaginal recounting.",
       "evidence": [
-        "Reinforcement: \"You're doing well,\" \"You're doing great,\" \"You've done really well.\"",
-        "Physiology prompts: \"What are you feeling in your body?\" and \"What's happening in your body?\"",
-        "Cognitive prompt: \"Stay with it. What are you thinking?\"",
-        "Emotion prompts: \"What are you feeling now?\" and \"Stay with those thoughts. What happens next?\""
+        {"text": "Reinforcement: \"You're doing well,\" \"You're doing great,\" \"You've done really well.\"", "lines": [67, 98, 145]},
+        {"text": "Physiology prompts: \"What are you feeling in your body?\" and \"What's happening in your body?\"", "lines": [78, 123]},
+        {"text": "Cognitive prompt: \"Stay with it. What are you thinking?\"", "line": 101},
+        {"text": "Emotion prompts: \"What are you feeling now?\" and \"Stay with those thoughts. What happens next?\"", "lines": [88, 167]}
       ],
       "evaluation": "These behaviors are consistent with PE expectations for maintaining engagement during imaginal exposure.",
       "suggestion": "",
@@ -50,8 +50,8 @@
       "summary": "Opportunity to strengthen post-exposure processing.",
       "observation": "Following imaginal exposure, the therapist validates the client's experience and proceeds to session closure without an explicit processing segment.",
       "evidence": [
-        "After the client reports feeling \"broken,\" the therapist validates and orients the client back to the room.",
-        "After the client later reports feeling \"stronger for having faced this,\" the therapist initiates end-of-session breathing and closure."
+        {"text": "After the client reports feeling \"broken,\" the therapist validates and orients the client back to the room.", "line": 189},
+        {"text": "After the client later reports feeling \"stronger for having faced this,\" the therapist initiates end-of-session breathing and closure.", "line": 215}
       ],
       "evaluation": "The transition to closure is appropriate but leaves limited space for explicit meaning-making.",
       "suggestion": "Add a brief processing segment after exposure (for example, what stood out most or how the client is interpreting the experience) to support learning consolidation.",

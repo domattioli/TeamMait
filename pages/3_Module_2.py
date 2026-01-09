@@ -627,7 +627,22 @@ def render_feedback_item(item: Dict) -> None:
     # Evidence (optional, collapsible if multiple items)
     evidence = item.get("evidence", [])
     if evidence and isinstance(evidence, list):
-        valid_evidence = [e for e in evidence if isinstance(e, str) and e.strip()]
+        # Handle both new format (dict with text/line) and old format (just string)
+        def format_evidence_item(ev):
+            if isinstance(ev, dict):
+                text = ev.get("text", "")
+                # Handle single line or multiple lines
+                if "line" in ev:
+                    return f"[Line {ev['line']}] {text}"
+                elif "lines" in ev:
+                    lines_str = ", ".join(str(l) for l in ev["lines"])
+                    return f"[Lines {lines_str}] {text}"
+                return text
+            elif isinstance(ev, str):
+                return ev
+            return ""
+        
+        valid_evidence = [format_evidence_item(e) for e in evidence if (isinstance(e, dict) and e.get("text", "").strip()) or (isinstance(e, str) and e.strip())]
         if valid_evidence:
             if len(valid_evidence) == 1:
                 # Single evidence item - show inline
