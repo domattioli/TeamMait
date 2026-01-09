@@ -5,12 +5,14 @@ from urllib.parse import quote
 import json
 from datetime import datetime
 import os
+import uuid
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from sentence_transformers import SentenceTransformer
 import sys
 import glob
 from utils.input_parser import MessageBuffer
+from utils.session_manager import SessionManager
 
 # ---------- SQLite shim for Chroma ----------
 try:
@@ -123,6 +125,24 @@ if "message_buffer" not in st.session_state:
     st.session_state.message_buffer = MessageBuffer()
 if "errors" not in st.session_state:
     st.session_state.errors = []
+
+# Initialize Module 1 session for persistence
+if "module1_session_id" not in st.session_state:
+    st.session_state.module1_session_id = str(uuid.uuid4())
+
+def sync_module1_to_storage():
+    """Persist Module 1 conversations to disk."""
+    try:
+        conversations = {"module1": st.session_state.get("messages", [])}
+        success = SessionManager.save_conversations(
+            username,
+            st.session_state.module1_session_id,
+            conversations
+        )
+        if not success:
+            st.toast("⚠️ Failed to save progress", icon="⚠️")
+    except Exception as e:
+        pass  # Silent fail - don't interrupt user
 
 # # ---- Brevity policy & templates (1–5) ----
 # BREVITY = {
@@ -607,6 +627,7 @@ if prompt is not None and prompt.strip() != "":
         # Add user message with timestamp
         user_msg = {"role": "user", "content": prompt, "ts": now_ts(), "display_name": username}
         st.session_state.messages.append(user_msg)
+        sync_module1_to_storage()  # Persist after user message
         
         with st.chat_message("user"):
             user_ts = now_ts()
@@ -699,6 +720,7 @@ if (st.session_state.messages and
             "ts": timestamp,
             "display_name": "TeamMait",
         }
+        sync_module1_to_storage()  # Persist after AI response
         
         if reply_text and reply_text.startswith("[Error:"):
             st.session_state.errors.append({"when": timestamp, "model": st.session_state["model"], "msg": reply_text})
