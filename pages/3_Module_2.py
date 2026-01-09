@@ -1232,7 +1232,7 @@ elif st.session_state.guided_phase == "active":
         
         st.divider()
 
-        st.markdown(f"### Observation {obs_idx + 1} of 4 (Completed):")
+        st.markdown(f"### Item {obs_idx + 1} of 3 (Completed):")
         
         with st.container(border=True):
             render_feedback_item(obs)
@@ -1263,7 +1263,7 @@ elif st.session_state.guided_phase == "active":
 
         st.divider()
 
-        st.markdown(f"### Observation {current_idx + 1} of 4:")
+        st.markdown(f"### Item {current_idx + 1} of 3:")
 
         with st.container(border=True):
             render_feedback_item(current_q)
@@ -1947,7 +1947,7 @@ elif st.session_state.guided_phase == "complete":
     Thank you for completing this module!
 
     **Summary:**
-    - **Observations reviewed:** {reviewed} / 4
+    - **Items reviewed:** {reviewed} / 3
     - **Total messages:** {total_messages}
     - **Time used:** {int(elapsed_seconds // 60)}:{int(elapsed_seconds % 60):02d}
     """
