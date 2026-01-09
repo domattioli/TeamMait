@@ -428,8 +428,8 @@ def build_participant_export():
     pdf.set_text_color(156, 163, 175)
     pdf.multi_cell(0, 5, "This is a record of your conversation with TeamMait. Thank you for participating!", align="C")
     
-    # Output PDF to bytes
-    pdf_bytes = pdf.output()
+    # Output PDF to bytes (convert bytearray to bytes for Streamlit compatibility)
+    pdf_bytes = bytes(pdf.output())
     return session_name, pdf_bytes, "pdf"
 
 # Custom CSS for red save button
