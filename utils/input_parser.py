@@ -98,14 +98,14 @@ class InputParser:
         """Get help text for user."""
         return """
 **Navigation:**
-- **⏭️ Next button** → Move to the next observation
-- **ℹ️ Help button** → Show this help message
+- **Next button** → Move to the next observation
+- **Help button** → Show this help message
 
 **How to use:**
 - Type a question or response to discuss the current observation
 - Your responses can be as detailed or brief as you like
 - The AI will provide feedback based on the therapy session transcript
-- Click **Next** when you're ready to move forward
+- Click **⏩ Next** when you're ready to move forward
 
 **Important rules:**
 - You can only move **forward** through observations (required for the study)
@@ -120,7 +120,7 @@ class InputParser:
     def get_navigation_redirect_message() -> str:
         """Get message to redirect user to Next button when they express navigation intent."""
         return """
-Looking to move forward? Click the **⏭️ Next** button in the sidebar to proceed to the next observation!
+Looking to move forward? Click the **⏩ Next** button in the sidebar to proceed to the next observation!
 
 Or, if you have more thoughts on this observation, feel free to share them below.
 """

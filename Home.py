@@ -83,7 +83,7 @@ if "user_info" not in st.session_state:
 
 # If test user and no API key provided yet, show prompt
 if st.session_state.is_test_user and "test_api_key" not in st.session_state:
-    st.info("ℹ️ You're running in **test mode**. You'll need to provide your own OpenAI API key to use Modules 1 and 2.")
+    st.info("You're running in **test mode**. You'll need to provide your own OpenAI API key to use Modules 1 and 2.")
     with st.form("api_key_form"):
         api_key_input = st.text_input(
             "Enter your OpenAI API Key",
@@ -99,7 +99,7 @@ if st.session_state.is_test_user and "test_api_key" not in st.session_state:
 
 # If test user has API key, show option to reset it
 if st.session_state.is_test_user and "test_api_key" in st.session_state:
-    with st.expander("🔑 API Key Settings"):
+    with st.expander("API Key Settings"):
         st.write("Your OpenAI API key is set.")
         if st.button("Reset API Key", type="secondary"):
             del st.session_state.test_api_key
@@ -157,7 +157,7 @@ if consent:
     st.session_state.user_info["consent_timestamp"] = datetime.now().isoformat()
     st.markdown(
         "<p style='font-size: 20px; font-weight: bold; color: #059669; margin-top: 16px;'>"
-        "✓ Click the <strong>Module 1</strong> tab in the left sidebar to continue."
+        "Click the <strong>Module 1</strong> tab in the left sidebar to continue."
         "</p>",
         unsafe_allow_html=True
     )

@@ -1015,7 +1015,7 @@ with st.sidebar:
     
     # Next button (only in active phase) / End and Save button (only in review phase)
     if st.session_state.guided_phase == "active":
-        if st.button("⏭️ Next", use_container_width=True, key="next_button", type="primary"):
+        if st.button("⏩ Next", use_container_width=True, key="next_button", type="primary"):
             current_idx = st.session_state.current_question_idx
             next_idx = current_idx + 1
             
@@ -1090,7 +1090,7 @@ In this Module, I'll share **3 structured observations** about the therapy sessi
 2. **Discuss, skip, and/or advance** - You can:
    - Take time to read the transcript, if you wish.
    - Type a question or comment to discuss the observation further.
-   - Click the **⏭️ Next** button to move to the next observation.
+   - Click the **⏩ Next** button to move to the next observation.
    - Feel free to skip observations if it does not interest you.
 3. **Review phase**
    - Once you've reviewed all 3 observations, you'll enter the review phase.
@@ -1109,7 +1109,7 @@ if st.session_state.guided_phase == "intro":
     
     st.markdown( get_intro_message(), unsafe_allow_html=True )
     st.info(
-            "**Ready to begin?** Click the **▶️ Start** button in the side panel."
+            "**Ready to begin?** Click the **Start** button in the side panel."
         )
     
 elif st.session_state.guided_phase == "active":
@@ -1160,7 +1160,7 @@ elif st.session_state.guided_phase == "active":
 
         st.info(
             "Type a response to discuss this item, "
-            "or use the **⏭️ Next** button to move to the next one."
+            "or use the **⏩ Next** button to move to the next one."
         )
 
         # Display conversation history for current observation
@@ -1222,7 +1222,7 @@ elif st.session_state.guided_phase == "active":
                 if not is_new:
                     st.warning("That looks like the same message. Please type something new.")
                 elif is_near_duplicate:
-                    st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
+                    st.info("You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
                 else:
                     # Add message to queue for sequential processing
                     st.session_state.message_queue.append({
@@ -1475,7 +1475,7 @@ elif st.session_state.guided_phase == "review":
     
     # Display the summary in a collapsible expander
     if st.session_state.observations_summary_generated and st.session_state.observations_summary:
-        with st.expander("📋 **Session Summary & Takeaways** (click to expand)", expanded=True):
+        with st.expander("**Session Summary & Takeaways** (click to expand)", expanded=True):
             st.markdown(st.session_state.observations_summary)
     
     st.divider()
@@ -1540,7 +1540,7 @@ elif st.session_state.guided_phase == "review":
         if not is_new:
             st.warning("That looks like the same message. Please type something new.")
         elif is_near_duplicate:
-            st.info("ℹ️ You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
+            st.info("You asked something very similar to your last question. I already provided an answer above. Would you like me to expand on it, or do you have a different question?")
         elif st.session_state.is_processing:
             # Queue the message if still processing a prior one
             st.session_state.message_queue.append({
