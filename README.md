@@ -89,8 +89,8 @@ streamlit run Home.py
 ## Usage
 
 ### Authentication
-- Users authenticate via username/password (configured in `doc/users.json`)
-- Default test credentials: username=`test`, password=`test`
+- Users authenticate via username/password (configured in `.streamlit/secrets.toml`)
+- **Test Mode**: Use `test mode` / `test` to try the app with your own OpenAI API key
 
 ### Interaction Modes
 

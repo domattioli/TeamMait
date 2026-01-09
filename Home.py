@@ -23,8 +23,8 @@ def load_valid_users():
 
 def validate_login(username, password):
     """Validate username and password against secrets"""
-    # Allow test/test for demo purposes
-    if username == "test" and password == "test":
+    # Allow test mode for demo purposes
+    if username == "test mode" and password == "test":
         return True
     
     valid_users = load_valid_users()
@@ -50,7 +50,7 @@ def get_user_details():
             return
         
         # If test user, prompt for API key
-        if username == "test" and password == "test":
+        if username == "test mode" and password == "test":
             st.session_state.is_test_user = True
             st.session_state.user_info = {
                 "username": username,
