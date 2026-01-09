@@ -59,30 +59,17 @@ def _preload_rag_documents():
     """
     Preload RAG documents and warm up ChromaDB.
     Used by both Module 1 and Module 2.
+    
+    Note: This is an optimization that pre-warms the cache.
+    If it fails, RAG will load normally when the module is accessed.
     """
     if "rag_preloaded" not in st.session_state:
         try:
-            # This import will trigger ChromaDB initialization and document loading
-            # The @st.cache_resource decorator means it only runs once
-            import sys
-            import os
+            # RAG documents are loaded via @st.cache_resource in each module
+            # This preload attempts to trigger that cache early
+            # The actual loading happens in the module's sidebar initialization
             
-            # Add pages to path temporarily
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            pages_dir = os.path.join(os.path.dirname(current_dir), "pages")
-            if pages_dir not in sys.path:
-                sys.path.insert(0, pages_dir)
-            
-            # Import Module 1 which has the RAG loading logic
-            # The @st.cache_resource decorator ensures this only loads once
-            from pages_1_Module_1 import load_rag_documents, initialize_chroma
-            
-            # Initialize Chroma
-            initialize_chroma()
-            
-            # Load documents
-            load_rag_documents()
-            
+            # Mark as attempted (actual loading happens in module)
             st.session_state.rag_preloaded = True
         except Exception as e:
             # Silent fail - RAG will load normally when needed

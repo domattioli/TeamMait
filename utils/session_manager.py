@@ -53,8 +53,8 @@ class SessionManager:
             logger.error(f"Failed to create session metadata: {e}")
             raise
 
-        # Initialize conversation storage
-        conversations = {str(i): [] for i in range(4)}
+        # Initialize conversation storage (3 observations in Module 2)
+        conversations = {str(i): [] for i in range(3)}
         conversations_path = user_dir / f"{session_id}_conversations.json"
         try:
             with open(conversations_path, "w") as f:
@@ -116,14 +116,14 @@ class SessionManager:
         conversations_path = user_dir / f"{session_id}_conversations.json"
 
         if not conversations_path.exists():
-            return {str(i): [] for i in range(4)}
+            return {str(i): [] for i in range(3)}
 
         try:
             with open(conversations_path, "r") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Failed to load conversations: {e}")
-            return {str(i): [] for i in range(4)}
+            return {str(i): [] for i in range(3)}
 
     @classmethod
     def save_conversations(
