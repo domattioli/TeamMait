@@ -1,9 +1,10 @@
-# Ignore sandboxing folder and its contents
-sandboxing/
-
 # custom lines
 .streamlit/secrets.toml
 .venv/
+sandboxing/
+SENSITIVE_INFO_AUDIT.md
+manuscript_draft_sections.pages
+user_sessions/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
