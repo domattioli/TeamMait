@@ -26,11 +26,4 @@ st.session_state["include_survey"] = persistent_value
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
 
-    def _on_include_survey_change():
-        from utils.streamlit_compat import debug_trace
-        # Update the persistent completion tracker when checkbox changes
-        current_value = st.session_state.get("include_survey", False)
-        st.session_state["completion_status"]["survey"] = current_value
-        debug_trace("completion_status.survey", current_value, "Survey")
-
-    st.checkbox("Check this when done", key="include_survey", on_change=_on_include_survey_change)
+    # Checkbox removed - completion status tracked automatically
