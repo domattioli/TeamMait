@@ -17,52 +17,14 @@ username = st.session_state["user_info"]["username"]
 with st.sidebar:
     st.markdown(f"**Username:** {username}")
 
-st.title("Finish")
-st.markdown("<p style='font-size:12px;color:#6b7280;margin-top:6px;'>Confirm that each page is marked as done. The Save button will be enabled only when all items are checked.</p>", unsafe_allow_html=True)
+st.title("Finished")
 
-# Note: bind the disabled checkboxes directly to the shared session_state keys
-# so they reflect changes made on other pages immediately.
-st.markdown("### Checklist")
-
-# Define the set of inclusion flags found across the app (pages + Home)
-inclusion_items = [
-    ("Instructions & Consent (Home)", "include_instructions_and_consent"),
-    ("Open Chat", "include_open_chat"),
-    ("Survey", "include_survey"),
-    ("Module 2", "include_guided_interaction")
-]
-
-# Initialize completion status if it doesn't exist
-if "completion_status" not in st.session_state:
-    st.session_state["completion_status"] = {}
-
-# Map the items to their completion status keys
-completion_mapping = {
-    "Instructions & Consent (Home)": "home",
-    "Module 1": "open_chat", 
-    "Survey 1": "survey",
-    "Module 2": "guided_interaction"
-}
-
-# Show completion status using the persistent tracker
-for label, _ in inclusion_items:
-    status_key = completion_mapping[label]
-    is_complete = st.session_state["completion_status"].get(status_key, False)
-    if is_complete:
-        st.markdown(f"✅ **{label}** - Complete")
-    else:
-        st.markdown(f"❌ **{label}** - Not complete")
-
-# Check if all are complete using the persistent tracker
-all_checked = all([
-    st.session_state["completion_status"].get("home", False),
-    st.session_state["completion_status"].get("open_chat", False),
-    st.session_state["completion_status"].get("survey", False),
-    st.session_state["completion_status"].get("guided_interaction", False)
-])
-
-if not all_checked:
-    st.warning("All modules must be completed before saving. Visit each page, complete the task, and then click next to 'Check this when done'.")
+st.markdown(
+    "<p style='font-size:24px; font-weight: bold; margin: 40px 0;'>"
+    "Finished? Click the 'Save Responses' button below and then let your proctor know that you're done."
+    "</p>",
+    unsafe_allow_html=True
+)
 
 def build_export():
     session_name = f"teammait_session_{username}_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
@@ -258,29 +220,25 @@ div.stButton > button[kind="primary"]:active {
 </style>
 """, unsafe_allow_html=True)
 
-clicked = st.button("Finish & Exit Study", disabled=not all_checked, type="primary")
-# To-Do: don't let them click more than once -- once its clicked, lock the entire website.
+clicked = st.button("Save Responses", type="primary")
 
 if clicked:
-    if not all_checked:
-        st.warning("Cannot exit: not all items are marked done.")
-    else:
-        session_name, json_data = build_export()
-        st.download_button(label="Download consolidated JSON", data=json_data, file_name=f"{session_name}.json", mime="application/json")
+    session_name, json_data = build_export()
+    st.download_button(label="Download consolidated JSON", data=json_data, file_name=f"{session_name}.json", mime="application/json")
 
-        # Attempt to append to Google Sheets if configured
-        try:
-            creds = st.secrets.get("GOOGLE_CREDENTIALS")
-            sheet_name = st.secrets.get("SHEET_NAME")
-            if creds and sheet_name:
-                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds_dict = _json.loads(creds)
-                creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-                gs = gspread.authorize(creds_obj)
-                sheet = gs.open(sheet_name).sheet1
-                sheet.append_row([json_data, datetime.now().isoformat()])
-                st.success("Saved and appended to Google Sheet.")
-            else:
-                st.info("Saved locally (download available). Google Sheets not configured.")
-        except Exception as e:
-            st.info(f"Saved locally. Google Sheets append failed or not configured: {e}")
+    # Attempt to append to Google Sheets if configured
+    try:
+        creds = st.secrets.get("GOOGLE_CREDENTIALS")
+        sheet_name = st.secrets.get("SHEET_NAME")
+        if creds and sheet_name:
+            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            creds_dict = _json.loads(creds)
+            creds_obj = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            gs = gspread.authorize(creds_obj)
+            sheet = gs.open(sheet_name).sheet1
+            sheet.append_row([json_data, datetime.now().isoformat()])
+            st.success("Saved and appended to Google Sheet.")
+        else:
+            st.info("Saved locally (download available). Google Sheets not configured.")
+    except Exception as e:
+        st.info(f"Saved locally. Google Sheets append failed or not configured: {e}")
