@@ -1464,10 +1464,9 @@ elif st.session_state.guided_phase == "review":
     # Generate key points summary on first arrival if not already done
     if "observations_summary_generated" not in st.session_state:
         summary = generate_observations_summary(st.session_state.all_conversations, client)
-        if summary:
-            st.session_state.observations_summary = summary
-            st.session_state.observations_summary_generated = True
-            sync_session_to_storage()
+        st.session_state.observations_summary = summary if summary else ""
+        st.session_state.observations_summary_generated = True
+        sync_session_to_storage()
     
     # Open chat mode - always shown in review phase
     current_idx = "open_chat"
@@ -1475,7 +1474,7 @@ elif st.session_state.guided_phase == "review":
     st.markdown("### Continue the Conversation")
     
     # Display the summary in a collapsible expander
-    if st.session_state.observations_summary_generated and st.session_state.observations_summary:
+    if st.session_state.get("observations_summary_generated") and st.session_state.get("observations_summary"):
         with st.expander("**Session Summary & Takeaways** (click to expand)", expanded=True):
             st.markdown(st.session_state.observations_summary)
     
