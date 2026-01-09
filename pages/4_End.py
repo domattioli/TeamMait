@@ -133,9 +133,9 @@ def build_export():
         "modules": {}
     }
 
-    # Module 1: Open Chat
-    if st.session_state.get("include_open_chat", False):
-        open_chat_messages = st.session_state.get("messages", [])
+    # Module 1: Open Chat - include if messages exist (more than just the initial greeting)
+    open_chat_messages = st.session_state.get("messages", [])
+    if len(open_chat_messages) > 1:  # More than just the initial greeting
         enhanced_messages = []
         
         for i, msg in enumerate(open_chat_messages):
@@ -172,19 +172,23 @@ def build_export():
             except:
                 pass
 
-    # Survey
-    if st.session_state.get("include_survey", False):
+    # Survey - include if link was clicked
+    if st.session_state.get("survey_link_clicked", False) or st.session_state.get("include_survey", False):
         export["modules"]["survey"] = {
-            "completed": True,
-            "qualtrics_redirect": True,
+            "completed": st.session_state.get("completion_status", {}).get("survey", False),
+            "link_clicked": st.session_state.get("survey_link_clicked", False),
         }
 
-    # Module 2: Guided Observations
-    if st.session_state.get("include_guided_interaction", False):
-        # Get all conversations from the new structure
-        all_conversations = st.session_state.get("all_conversations", {})
-        question_bank = st.session_state.get("question_bank", [])
-        
+    # Module 2: Guided Observations - include if conversations exist
+    all_conversations = st.session_state.get("all_conversations", {})
+    question_bank = st.session_state.get("question_bank", [])
+    
+    # Check if there are any messages in Module 2
+    has_module2_data = any(
+        len(all_conversations.get(i, [])) > 0 for i in range(len(question_bank))
+    ) or len(all_conversations.get("open_chat", [])) > 0
+    
+    if has_module2_data:
         observations_export = []
         all_messages_flat = []
         
@@ -219,6 +223,12 @@ def build_export():
                 }
             })
         
+        # Include open_chat from review phase if exists
+        open_chat_messages = all_conversations.get("open_chat", [])
+        if open_chat_messages:
+            for msg in open_chat_messages:
+                all_messages_flat.append(msg)
+        
         # Overall Module 2 metrics
         overall_reply_metrics = calculate_reply_times(all_messages_flat)
         overall_engagement = calculate_engagement_metrics(all_messages_flat)
@@ -227,6 +237,13 @@ def build_export():
         
         export["modules"]["module_2_guided_observations"] = {
             "observations": observations_export,
+            "open_chat": [{
+                "sequence": i + 1,
+                "role": msg.get("role"),
+                "content": msg.get("content"),
+                "timestamp": msg.get("timestamp"),
+                "word_count": len(msg.get("content", "").split()),
+            } for i, msg in enumerate(open_chat_messages)] if open_chat_messages else [],
             "session_metadata": {
                 "session_id": st.session_state.get("guided_session_id"),
                 "phase": st.session_state.get("guided_phase"),
@@ -273,9 +290,9 @@ def build_participant_export():
         "conversations": {}
     }
 
-    # Module 1: Open Chat
-    if st.session_state.get("include_open_chat", False):
-        open_chat_messages = st.session_state.get("messages", [])
+    # Module 1: Open Chat - include if messages exist (more than just greeting)
+    open_chat_messages = st.session_state.get("messages", [])
+    if len(open_chat_messages) > 1:
         clean_messages = []
         
         for msg in open_chat_messages:
@@ -288,39 +305,38 @@ def build_participant_export():
         if clean_messages:
             export["conversations"]["Module 1 - Open Review"] = clean_messages
 
-    # Module 2: Guided Observations
-    if st.session_state.get("include_guided_interaction", False):
-        all_conversations = st.session_state.get("all_conversations", {})
-        question_bank = st.session_state.get("question_bank", [])
+    # Module 2: Guided Observations - include if data exists
+    all_conversations = st.session_state.get("all_conversations", {})
+    question_bank = st.session_state.get("question_bank", [])
+    
+    for obs_idx in range(len(question_bank)):
+        obs_messages = all_conversations.get(obs_idx, [])
+        obs_data = question_bank[obs_idx] if obs_idx < len(question_bank) else {}
+        obs_title = obs_data.get("title", f"Observation {obs_idx + 1}")
         
-        for obs_idx in range(len(question_bank)):
-            obs_messages = all_conversations.get(obs_idx, [])
-            obs_data = question_bank[obs_idx] if obs_idx < len(question_bank) else {}
-            obs_title = obs_data.get("title", f"Observation {obs_idx + 1}")
-            
-            clean_messages = []
-            for msg in obs_messages:
-                if msg.get("role") in ("user", "assistant"):
-                    clean_messages.append({
-                        "speaker": "You" if msg.get("role") == "user" else "TeamMait",
-                        "message": msg.get("content", ""),
-                    })
-            
-            if clean_messages:
-                export["conversations"][f"Module 2 - Item {obs_idx + 1}: {obs_title}"] = clean_messages
+        clean_messages = []
+        for msg in obs_messages:
+            if msg.get("role") in ("user", "assistant"):
+                clean_messages.append({
+                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
+                    "message": msg.get("content", ""),
+                })
         
-        # Open chat from review phase
-        open_chat = all_conversations.get("open_chat", [])
-        if open_chat:
-            clean_open = []
-            for msg in open_chat:
-                if msg.get("role") in ("user", "assistant"):
-                    clean_open.append({
-                        "speaker": "You" if msg.get("role") == "user" else "TeamMait",
-                        "message": msg.get("content", ""),
-                    })
-            if clean_open:
-                export["conversations"]["Module 2 - Follow-up Discussion"] = clean_open
+        if clean_messages:
+            export["conversations"][f"Module 2 - Item {obs_idx + 1}: {obs_title}"] = clean_messages
+    
+    # Open chat from review phase
+    open_chat = all_conversations.get("open_chat", [])
+    if open_chat:
+        clean_open = []
+        for msg in open_chat:
+            if msg.get("role") in ("user", "assistant"):
+                clean_open.append({
+                    "speaker": "You" if msg.get("role") == "user" else "TeamMait",
+                    "message": msg.get("content", ""),
+                })
+        if clean_open:
+            export["conversations"]["Module 2 - Follow-up Discussion"] = clean_open
 
     export["note"] = "This is a record of your conversation with TeamMait. Thank you for participating!"
     return session_name, json.dumps(export, indent=2)
