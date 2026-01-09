@@ -170,7 +170,9 @@ if consent:
 - For each of the two modules you can find a PE session transcript in the left side panel of the page.
 - Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
 - Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
-
+- The entire study will last approximately 55 minutes.
+    - Your proctor will keep track of your time to ensure you stay within the study limits.
+                    
 #### Module 1 ~ 15-20 minutes
 - Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
 - **Natural Conversation**: TeamMait responds when you initiate questions.
