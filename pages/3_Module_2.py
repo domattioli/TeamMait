@@ -603,45 +603,40 @@ def format_observation_context(item: Dict) -> str:
 
 
 def render_feedback_item(item: Dict) -> None:
-    """Render a feedback item with structured formatting.
+    """Render a feedback item with structured formatting and collapsible evidence.
     
     Args:
         item: Dictionary containing feedback item with keys: title, summary, observation, 
-              evidence, evaluation, suggestion, justification, conceptual_focus
+              evidence, suggestion, conceptual_focus
     """
-    # Summary (first line)
+    # Summary (first line - brief initial message)
     summary = item.get("summary", "").strip()
     if summary:
-        st.markdown(summary)
+        st.markdown(f"**{summary}**")
     
     # Observation (optional)
     observation = item.get("observation", "").strip()
     if observation:
-        st.markdown("**Observation:**")
         st.markdown(observation)
     
-    # Justification (optional, shown as Assessment) - BEFORE Evidence
-    justification = item.get("justification", "").strip()
-    if justification:
-        st.markdown(f"**Assessment:** {justification}")
-    
-    # Evidence (optional, as bullet points)
+    # Evidence (optional, collapsible if multiple items)
     evidence = item.get("evidence", [])
-    if evidence and isinstance(evidence, list) and any(e.strip() for e in evidence):
-        st.markdown("**Evidence:**")
-        for ev in evidence:
-            if isinstance(ev, str) and ev.strip():
-                st.markdown(f"- {ev}")
+    if evidence and isinstance(evidence, list):
+        valid_evidence = [e for e in evidence if isinstance(e, str) and e.strip()]
+        if valid_evidence:
+            if len(valid_evidence) == 1:
+                # Single evidence item - show inline
+                st.markdown(f"**Evidence:** {valid_evidence[0]}")
+            else:
+                # Multiple evidence items - collapsible
+                with st.expander(f"**Evidence** ({len(valid_evidence)} items)", expanded=False):
+                    for ev in valid_evidence:
+                        st.markdown(f"- {ev}")
     
-    # Evaluation (optional)
-    evaluation = item.get("evaluation", "").strip()
-    if evaluation:
-        st.markdown(f"**Evaluation:** {evaluation}")
-    
-    # Suggestion (optional)
-    suggestion = item.get("suggestion", "").strip()
-    if suggestion:
-        st.markdown(f"**Suggestion:** {suggestion}")
+    # Prescription (optional, renamed from Suggestion)
+    prescription = item.get("suggestion", "").strip()
+    if prescription:
+        st.markdown(f"**Prescription:** {prescription}")
 
 
 def generate_observations_summary(conversations: Dict, client: any) -> str:
