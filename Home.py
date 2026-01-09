@@ -10,20 +10,19 @@ st.set_page_config(
 
 # ---------- Login Dialog ----------
 def load_valid_users():
-    """Load valid users from credentials.json file"""
+    """Load valid users from Streamlit secrets"""
     try:
-        with open("doc/credentials.json", "r") as f:
-            data = json.load(f)
-            return data.get("users", [])
-    except FileNotFoundError:
-        st.error("Credentials configuration file not found.")
-        return []
-    except json.JSONDecodeError:
-        st.error("Invalid credentials configuration file.")
+        users = st.secrets.get("credentials", {}).get("users", [])
+        if not users:
+            st.error("No credentials found in secrets.")
+            return []
+        return users
+    except Exception as e:
+        st.error(f"Error loading credentials: {e}")
         return []
 
 def validate_login(username, password):
-    """Validate username and password against the users.json file"""
+    """Validate username and password against secrets"""
     valid_users = load_valid_users()
     for user in valid_users:
         if user.get("username") == username and user.get("password") == password:
