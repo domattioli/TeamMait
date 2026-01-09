@@ -947,6 +947,16 @@ def handle_navigation(
     if not is_valid:
         return False, error_msg
 
+    # Reset processing state when navigating (in case user clicked Next while bot was thinking)
+    st.session_state.is_processing = False
+    st.session_state.message_queue = []
+    
+    # Clean up any orphaned "Thinking..." messages from current observation
+    if current_idx in st.session_state.all_conversations:
+        conv = st.session_state.all_conversations[current_idx]
+        if conv and conv[-1].get("content") == "*Thinking...*":
+            conv.pop()
+
     # Record timing with defensive check
     if st.session_state.guided_session_start is not None:
         elapsed = (datetime.now() - st.session_state.guided_session_start).total_seconds()
@@ -1429,6 +1439,9 @@ elif st.session_state.guided_phase == "review":
     if "review_phase_entered" not in st.session_state:
         st.session_state.all_conversations["open_chat"] = []
         st.session_state.review_phase_entered = True
+        # Reset processing state in case user navigated while bot was thinking
+        st.session_state.is_processing = False
+        st.session_state.message_queue = []
         sync_session_to_storage()
     
     # Display summary of all prior observations and their chat histories
