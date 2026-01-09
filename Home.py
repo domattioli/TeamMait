@@ -164,53 +164,12 @@ st.markdown("""
 **By checking the consent box, you acknowledge that you have read and understood this information and agree to participate in this research study.**
 """)
 
-# Initialize completion status if it doesn't exist
-if "completion_status" not in st.session_state:
-    st.session_state["completion_status"] = {}
-
-# Sync the consent checkbox with persistent storage
-persistent_consent = st.session_state["completion_status"].get("consent_given", False)
-st.session_state["consent_given"] = persistent_consent
-
-def _on_consent_change():
-    from utils.streamlit_compat import debug_trace
-    # Update the persistent completion tracker when consent checkbox changes
-    current_value = st.session_state.get("consent_given", False)
-    st.session_state["completion_status"]["consent_given"] = current_value
-    debug_trace("completion_status.consent_given", current_value, "Home")
-
-# Consent checkbox
-st.checkbox("I have read and agree to the consent form", key="consent_given", on_change=_on_consent_change)
-
 st.markdown(
     "<p style='font-size: 14px; color: #6b7280; margin-top: 16px;'>"
-    "After you check the consent box and complete the form, click the <strong>Module 1</strong> tab in the left sidebar to continue."
+    "Click the <strong>Module 1</strong> tab in the left sidebar to continue."
     "</p>",
     unsafe_allow_html=True
 )
-
-# Sync the checkbox state with the persistent completion tracker
-persistent_value = st.session_state["completion_status"].get("home", False)
-st.session_state["include_instructions_and_consent"] = persistent_value
-
-def _on_include_guided_change():
-    from utils.streamlit_compat import debug_trace
-    # Update the persistent completion tracker when checkbox changes
-    current_value = st.session_state.get("include_instructions_and_consent", False)
-    st.session_state["completion_status"]["home"] = current_value
-    debug_trace("completion_status.home", current_value, "Home")
-
-# Only enable the "Check this when done" checkbox if consent is given
-
-if st.session_state.get("consent_given", False):
-    st.checkbox("Check this when done", key="include_instructions_and_consent", on_change=_on_include_guided_change)
-else:
-    # Display a disabled checkbox with a message
-    st.checkbox("Check this when done", key="include_instructions_and_consent", 
-                disabled=True, on_change=_on_include_guided_change)
-    st.info("Please read and agree to the consent form first.")
-
-
 
 # ---------- Footer ----------
 st.divider()
