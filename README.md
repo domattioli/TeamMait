@@ -5,59 +5,62 @@ A peer-support assistant designed to help expert clinicians review and analyze P
 
 ## Overview
 
-TeamMait provides two interaction modes for clinical supervision:
-1. **Open Chat**: Free-form conversation about therapy transcripts
-2. **Guided Interaction**: Structured observations and discussion
-3. **Survey**: Post-interaction feedback collection
+TeamMait provides four interaction modes for clinical supervision:
+1. **Module 1 (Open Chat)**: Free-form conversation about a therapy transcript
+2. **Module 2 (Guided Observations)**: Structured observations with evidence and discussion
+3. **Survey**: External Qualtrics survey for feedback collection
 4. **Finish**: Session completion and data export
 
 ## Features
 
 ### Core Functionality
-- **AI-Powered Analysis**: Uses OpenAI GPT-4o-mini for transcript analysis
+- **AI-Powered Analysis**: Uses OpenAI GPT-4o-mini for transcript analysis and summaries
 - **RAG (Retrieval-Augmented Generation)**: ChromaDB vector database for contextual responses
-- **DOCX Support**: Automatic processing of Word documents with chunking for large files
-- **Multi-format Document Support**: JSON, TXT, and DOCX files in supporting documents
+- **Preloading**: Background loading of embeddings and ChromaDB on Home page for faster navigation
+- **Message Queue**: Sequential message processing prevents input loss during rapid interaction
 - **Line-Referenced Citations**: Precise transcript references with line numbers
-- **Intelligent Response Classification**: LLM-powered user intent detection
-- **Inactivity Detection**: 5-minute prompts to maintain engagement
-- **Completion Tracking**: Progress monitoring across all interaction phases
+- **Session Management**: Persistent sessions with 2-hour timeout and 48-hour cleanup
+- **Analytics Logging**: Event logging to `logs/session_analytics.jsonl`
 
 ### User Interface
+- **Consent Integration**: Consent form on landing page with checkbox requirement
 - **Professional Styling**: Clean, clinical interface with proper typography
-- **Responsive Design**: Optimized for various screen sizes
-- **Progress Tracking**: Visual progress bars and completion status
-- **Timestamp Display**: Smaller, unobtrusive timestamps throughout conversations
-- **Evidence Display**: On-demand citation and supporting evidence
-- **Quick Response Buttons**: Thumbs up/down feedback for guided observations
+- **Collapsible Evidence**: Expandable evidence boxes with line numbers
+- **Progress Tracking**: Visual indicators for observation progress
+- **Timestamp Display**: Unobtrusive timestamps throughout conversations
 
 ## File Structure
 
 ```
 TeamMait/
-├── Home.py                          # Landing page with login, instructions, consent
+├── Home.py                          # Landing page with login, consent, preloading
 ├── pages/
-│   ├── 1_Open_Chat.py              # Free-form conversation mode
-│   ├── 2_Survey.py                 # Post-interaction survey
-│   ├── 3_Guided_Interaction.py     # Structured flowchart interaction
-│   └── 4_Finish.py                 # Session completion and export
+│   ├── 1_Module_1.py               # Open chat mode (uses P8 transcript)
+│   ├── 2_Qualtrics_Survey.py       # External survey redirect
+│   ├── 3_Module_2.py               # Guided observations (uses P10 transcript)
+│   └── 4_End.py                    # Session completion and export
 ├── utils/
 │   ├── __init__.py                 
+│   ├── analytics.py                # Event logging
+│   ├── api_handler.py              # OpenAI API with retry logic
+│   ├── input_parser.py             # Navigation intent detection, message buffer
+│   ├── module_preload.py           # Background ChromaDB/embedding preloader
+│   ├── navigation_validator.py     # Phase transition validation
+│   ├── session_manager.py          # Persistent session storage
 │   └── streamlit_compat.py         # Compatibility utilities
 ├── doc/
-│   ├── users.json                  # User authentication data
+│   ├── consent_form.md             # Consent form text
 │   ├── RAG/
-│   │   ├── 116_P8_conversation.json    # Reference therapy transcript
+│   │   ├── 116_P8_conversation.json    # Module 1 transcript
+│   │   ├── 281_P10_conversation.json   # Module 2 transcript
 │   │   └── supporting_documents/       # Additional training materials
-│   │       ├── *.docx              # Word documents (auto-processed)
-│   │       ├── *.json              # JSON metadata files
-│   │       └── *.txt               # Text documents
 │   └── interaction_prompts/
-│       └── interaction_prompts.json    # Guided interaction question bank
+│       └── interaction_prompts.json    # Module 2 observation bank
 ├── rag_store/                      # ChromaDB persistent storage
+├── user_sessions/                  # Persistent session data
+├── logs/                           # Analytics logs
 ├── requirements.txt                # Python dependencies
-├── runtime.txt                     # Python version specification
-└── README.md                       # This file
+└── runtime.txt                     # Python version specification
 ```
 
 ## Installation & Setup
@@ -90,27 +93,41 @@ streamlit run Home.py
 
 ### Authentication
 - Users authenticate via username/password (configured in `.streamlit/secrets.toml`)
-- **Test Mode**: Use `test mode` / `test` to try the app with your own OpenAI API key
+- **Test Mode**: Use username `test mode` / password `test` to try the app with your own OpenAI API key
 
 ### Interaction Modes
 
-#### Phase 1: Open Chat
-- Natural conversation with TeamMait about the therapy transcript
+#### Module 1: Open Chat
+- Natural conversation with TeamMait about the therapy transcript (P8)
 - Ask questions about therapist performance, techniques, or observations
 - Request evidence and citations from the transcript
 - No time limits or structured requirements
 
-#### Phase 2: Guided Interaction
-- TeamMait presents prepared observations about the transcript
-- Users can accept, disagree, request clarification, or skip observations
-- Natural discussion around each observation
-- Progress tracking through 4 prepared questions
-- Automatic completion detection and reminders
+#### Module 2: Guided Observations
+- TeamMait presents 3 structured observations about a different transcript (P10)
+- Each observation includes one of three styles:
+  - `evidence_only_reflection`: Evidence excerpts for user reflection
+  - `evidence_based_evaluation`: Evaluation with supporting evidence
+  - `actionable_training_prescription`: Specific recommendations with evidence
+- Evidence includes line numbers referencing the transcript
+- Users discuss, skip, or advance through observations using the **⏩ Next** button
+- Review phase allows revisiting all observations and requesting summaries
+
+**Observation JSON structure:**
+```json
+{
+  "style": "evidence_based_evaluation",
+  "title": "Brief title",
+  "assertion": "Main observation",
+  "evidence": [{"text": "Quote from transcript", "line": 42}],
+  "justification": "Why this matters"
+}
+```
 
 #### Survey & Completion
-- Brief post-interaction survey about user experience
-- Session completion tracking
-- Data export functionality
+- External Qualtrics survey for feedback
+- Session completion with data export
+- Comprehensive JSON export with conversation history and metadata
 
 ## Technical Implementation
 
@@ -122,22 +139,23 @@ TeamMait operates with strict guidelines:
 - Provide evidence-based analysis with specific citations
 - Limit scope to transcript analysis (no broader therapy advice)
 
-### Intelligent Response Handling
-- **LLM Classification**: Determines user intent (accept/correct/clarify/disregard)
-- **Context-Aware Responses**: Adapts to conversation flow and user engagement
-- **Completion Detection**: Recognizes when users have finished their evaluation
-- **Inactivity Monitoring**: Suggests progression after 5 minutes of inactivity
+### Response Handling
+- **API Retry Handler**: Exponential backoff (2s, 4s, 8s) for transient failures
+- **Message Queue**: Sequential processing prevents message loss during rapid input
+- **Near-Duplicate Detection**: Warns users when submitting similar questions (>90% similarity)
+- **Navigation Intent**: Detects phrases like "next" and redirects to the Next button
 
-### Document Processing
-- **DOCX Extraction**: Automatic text extraction from Word documents
-- **Chunking Strategy**: Large documents split into 500-word chunks for optimal retrieval
-- **Multi-format Support**: Handles JSON, TXT, and DOCX files seamlessly
-- **Error Handling**: Graceful handling of corrupted or unreadable files
+### Session Management
+- **Persistent Storage**: Sessions saved to `user_sessions/` directory
+- **Session Timeout**: 2-hour inactivity timeout
+- **Session Cleanup**: Expired sessions removed after 48 hours
+- **Metadata Tracking**: Phase, observation index, message counts
 
 ### Data Management
 - **Session Persistence**: State maintained across page navigation
-- **Completion Tracking**: Progress saved across interaction phases
-- **Export Functionality**: JSON format with timestamps and metadata
+- **Analytics Logging**: Events logged to `logs/session_analytics.jsonl`
+- **Export Functionality**: JSON format with timestamps, metadata, and conversation history
+- **Google Sheets Integration**: Automatic export for non-test users
 
 ## Research & Privacy
 
@@ -158,32 +176,30 @@ This tool is designed for research into AI-assisted clinical supervision and tra
 
 ## Customization
 
-### Adding Questions
+### Adding Observations
 Edit `doc/interaction_prompts/interaction_prompts.json`:
 ```json
 {
-  "id": "unique_question_id",
-  "assertion": "Observation about the transcript",
-  "explanation": "Supporting details and reasoning",
-  "invitation": "Question to prompt user discussion"
+  "id": "unique_id",
+  "style": "evidence_based_evaluation",
+  "title": "Brief title",
+  "assertion": "Main observation",
+  "evidence": [{"text": "Transcript quote", "line": 42}],
+  "justification": "Clinical reasoning"
 }
 ```
 
-### Document Management
-- Add supporting documents to `doc/RAG/supporting_documents/`
-- Supports DOCX, JSON, and TXT formats
-- Files are automatically indexed in the vector database
-- Large documents are automatically chunked for optimal retrieval
+### Transcript Management
+- Module 1 uses `doc/RAG/116_P8_conversation.json`
+- Module 2 uses `doc/RAG/281_P10_conversation.json`
+- Supporting documents in `doc/RAG/supporting_documents/` are indexed in ChromaDB
 
 ### User Management
-Edit `doc/users.json`:
-```json
-{
-  "users": [
-    {"username": "user1", "password": "password1"},
-    {"username": "user2", "password": "password2"}
-  ]
-}
+Add users to `.streamlit/secrets.toml`:
+```toml
+[users]
+username1 = "password1"
+username2 = "password2"
 ```
 
 ## Deployment
