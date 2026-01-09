@@ -674,7 +674,7 @@ def render_feedback_item(item: Dict) -> None:
 
 def generate_observations_summary(conversations: Dict, client: any) -> str:
     """Generate a bulleted summary of key points from all three observation discussions,
-    with calls to action for supervisor recommendations on trainee development."""
+    with grounded recommendations based on what the supervisor actually expressed."""
     try:
         # Collect all messages from the three observations
         all_messages = []
@@ -685,20 +685,39 @@ def generate_observations_summary(conversations: Dict, client: any) -> str:
         if not all_messages:
             return ""
         
-        # Create a summary request framed for supervisor assessment of trainee
+        # Filter out very short conversations (less than 2 substantive user messages)
+        user_messages = [m for m in all_messages if m["role"] == "user" and len(m["content"]) > 20]
+        if len(user_messages) < 2:
+            return "_The supervision session was brief. No substantive recommendations to summarize._"
+        
+        # Create a summary request with clear grounding instructions
         summary_prompt = (
-            "You are synthesizing clinical supervision notes from a supervisor reviewing a trainee therapist's performance. "
-            "Based on the supervision discussion below, create a concise summary that includes:\n\n"
-            "1. ASSESSMENT FINDINGS (3-4 bullet points): Summative statements about what the supervisor focused on regarding the trainee's "
-            "demonstrated skills, fidelity to the model, areas of strength, and areas needing development. For EACH finding, include a brief "
-            "1-2 sentence statement about what the supervision discussion revealed (e.g., 'The supervisor examined the trainee's use of... and "
-            "found that...' or 'During discussion, the supervisor noted a focus on...'). IMPORTANT: Keep each bullet point to no more than 75 characters.\n"
-            "2. SUPERVISION RECOMMENDATIONS (2-3 bullet points): First, state matter-of-factly what recommendations were actually discussed "
-            "in the supervision session. Then, suggest other related developmental priorities. Frame these constructively as areas to work on. "
-            "For EACH recommendation, add a brief 1-2 sentence statement of the practical reasoning or clinical importance (e.g., 'This is important "
-            "because...' or 'The reasoning here is that...'). IMPORTANT: Keep each bullet point to no more than 75 characters.\n\n"
-            "Be specific and concrete. Reference actual discussion points about the trainee's performance. "
-            "The summary should help the supervisor focus their feedback session with the trainee.\n\n"
+            "You are analyzing a clinical supervision conversation to extract the supervisor's actual assessments and recommendations.\n\n"
+            "CRITICAL DISTINCTION - You must separate:\n"
+            "1. META-CONVERSATION: When the supervisor asks YOU (TeamMait) for clarification, evidence, line numbers, or explanations. "
+            "These are requests about YOUR responses, NOT recommendations for the trainee therapist. EXCLUDE these.\n"
+            "2. SUBSTANTIVE FEEDBACK: When the supervisor expresses opinions, concerns, or recommendations about the TRAINEE THERAPIST's "
+            "actual clinical performance. INCLUDE only these.\n\n"
+            "Examples of META-CONVERSATION to EXCLUDE:\n"
+            "- 'Can you give me line numbers for that?'\n"
+            "- 'What evidence supports that claim?'\n"
+            "- 'Can you clarify what you mean?'\n"
+            "- 'Show me where in the transcript...'\n\n"
+            "Examples of SUBSTANTIVE FEEDBACK to INCLUDE:\n"
+            "- 'I think the therapist should have asked more about feelings'\n"
+            "- 'The SUDS monitoring was good but could be more frequent'\n"
+            "- 'I noticed the therapist rushed the closure'\n\n"
+            "Based ONLY on substantive feedback, generate:\n\n"
+            "## Assessment Findings\n"
+            "- 2-4 brief bullets (max 80 chars each) summarizing what the supervisor focused on\n"
+            "- Each must be grounded in something the supervisor actually said or clearly implied\n"
+            "- Format: **Finding** | _Based on: 'brief quote or paraphrase'_\n\n"
+            "## Supervision Recommendations\n"
+            "- 0-3 bullets of what the supervisor wants the trainee to work on\n"
+            "- ONLY include if the supervisor explicitly or implicitly expressed this as a developmental area\n"
+            "- Format: **Recommendation** | _Reasoning: brief explanation_\n"
+            "- If the supervisor made no substantive recommendations about the trainee, write: '_No specific recommendations were expressed during this session._'\n\n"
+            "BE CONSERVATIVE: If unsure whether something is a recommendation for the trainee vs. a question for you, EXCLUDE it.\n\n"
             "Supervision Discussion:"
         )
         
@@ -708,22 +727,23 @@ def generate_observations_summary(conversations: Dict, client: any) -> str:
             summary_prompt += f"\n{role}: {msg['content'][:250]}"  # Truncate long messages
         
         # Call OpenAI to generate summary
-        response_text = ""
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system", 
                     "content": (
-                        "You are an expert clinical supervisor synthesizing assessment notes about a trainee therapist's performance. "
-                        "Provide clear findings and actionable supervision recommendations. Frame recommendations as developmental priorities "
-                        "that will guide the supervisor's feedback conversation with the trainee."
+                        "You extract and summarize clinical supervision feedback. "
+                        "You ONLY report what the supervisor actually said about the trainee therapist. "
+                        "You distinguish between requests directed at you (the AI assistant) versus feedback about the trainee. "
+                        "You are conservative - when in doubt, do not include something as a recommendation. "
+                        "If the conversation was mostly clarifying questions to you, acknowledge that no substantive recommendations were made."
                     )
                 },
                 {"role": "user", "content": summary_prompt}
             ],
-            temperature=0.7,
-            max_tokens=500,
+            temperature=0.5,
+            max_tokens=600,
             stream=False
         )
         
@@ -1453,10 +1473,10 @@ elif st.session_state.guided_phase == "review":
     
     st.markdown("### Continue the Conversation")
     
-    # Display the summary as markdown (not as a chat message)
+    # Display the summary in a collapsible expander
     if st.session_state.observations_summary_generated and st.session_state.observations_summary:
-        st.markdown("**Key Takeaways from Your Discussion:**")
-        st.markdown(st.session_state.observations_summary)
+        with st.expander("📋 **Session Summary & Takeaways** (click to expand)", expanded=True):
+            st.markdown(st.session_state.observations_summary)
     
     st.divider()
     
