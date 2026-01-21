@@ -131,14 +131,11 @@ This project originated from a research study at Penn State investigating how AI
 The archived experiment setup is available in `archive/experiment_setup/` for reference.
 
 **Original Research Team**:
-- Principal Investigator: Dominik Mattioli, M.S., Ph.D.
+- Principal Investigator: Dominik Mattioli, Ph.D.
 - Institution: Penn State College of Information Sciences and Technology
-- Funding: National Science Foundation, Award #2326144
 
 ## License
 
-[Add your license here]
 
 ## Contributing
 
-[Add contribution guidelines here]
