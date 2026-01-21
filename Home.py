@@ -41,7 +41,6 @@ from utils.input_parser import MessageBuffer
 # ---------- Page Config ----------
 st.set_page_config(
     page_title="TeamMait - Therapy Transcript Review",
-    page_icon="🧠",
     layout="wide"
 )
 
@@ -424,7 +423,7 @@ with st.sidebar:
     st.divider()
     
     # Reference Conversation
-    with st.expander("📄 Session Transcript", expanded=True):
+    with st.expander("Session Transcript", expanded=True):
         ref_conversation = load_reference_conversation()
         if ref_conversation:
             for i, turn in enumerate(ref_conversation):
@@ -452,7 +451,7 @@ with st.sidebar:
 
 
 # ---------- Main Content ----------
-st.title("🧠 TeamMait")
+st.title("TeamMait")
 st.markdown(
     "<p style='font-size:14px;color:#6b7280;margin-bottom:16px;'>"
     "Your AI peer-support assistant for reviewing therapy session transcripts. "
