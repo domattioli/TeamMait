@@ -1,14 +1,98 @@
+"""
+TeamMait - AI-Powered Therapy Transcript Review Assistant
+Main chat interface for clinicians to review and discuss therapy session transcripts.
+"""
+
 import streamlit as st
 import json
 import uuid
 from datetime import datetime
-from pathlib import Path
-from utils.session_manager import SessionManager
+from textwrap import dedent
+from urllib.parse import quote
+import os
+import sys
+import glob
 
+# ---------- SQLite shim for Chroma ----------
+try:
+    import pysqlite3
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
+
+import chromadb
+from chromadb.utils import embedding_functions
+from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
+
+# Optional SDKs
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+try:
+    from docx import Document
+except ImportError:
+    Document = None
+
+from utils.session_manager import SessionManager
+from utils.input_parser import MessageBuffer
+
+# ---------- Page Config ----------
 st.set_page_config(
     page_title="TeamMait - Therapy Transcript Review",
+    page_icon="🧠",
     layout="wide"
 )
+
+# ---------- Simple avatars (SVG data URIs) ----------
+def svg_data_uri(svg: str) -> str:
+    return "data:image/svg+xml;utf8," + quote(svg)
+
+USER_SVG = svg_data_uri(
+    dedent("""
+    <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
+      <defs>
+        <linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>
+          <stop offset='0%' stop-color='#1f2937'/>
+          <stop offset='100%' stop-color='#0b1220'/>
+        </linearGradient>
+      </defs>
+      <circle cx='32' cy='32' r='32' fill='url(#g)'/>
+      <text x='50%' y='54%' text-anchor='middle' font-family='Inter,Arial' font-size='24' fill='#e5e7eb' font-weight='700'>U</text>
+    </svg>
+    """).strip()
+)
+
+BOT_SVG = svg_data_uri(
+    dedent("""
+    <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>
+      <circle cx='32' cy='32' r='32' fill='#111827'/>
+      <rect x='18' y='20' width='28' height='22' rx='6' fill='#1f2937' stroke='#374151' stroke-width='2'/>
+      <circle cx='26' cy='31' r='4' fill='#93c5fd'/>
+      <circle cx='38' cy='31' r='4' fill='#93c5fd'/>
+      <rect x='28' y='42' width='8' height='6' rx='3' fill='#4b5563'/>
+      <rect x='30' y='12' width='4' height='8' rx='2' fill='#6b7280'/>
+    </svg>
+    """).strip()
+)
+
+
+# ---------- Helpers ----------
+def now_ts() -> str:
+    return datetime.now().isoformat()
+
+
+def get_secret_then_env(name: str) -> str:
+    val = None
+    try:
+        val = st.secrets.get(name)
+    except Exception:
+        val = None
+    if not val:
+        val = os.getenv(name)
+    return val or ""
+
 
 # ---------- Login Dialog ----------
 def load_valid_users():
@@ -16,17 +100,16 @@ def load_valid_users():
     try:
         users = st.secrets.get("credentials", {}).get("users", [])
         if not users:
-            st.error("No credentials found in secrets.")
             return []
         return users
-    except Exception as e:
-        st.error(f"Error loading credentials: {e}")
+    except Exception:
         return []
+
 
 def validate_login(username, password):
     """Validate username and password against secrets"""
-    # Allow test mode for demo purposes
-    if username == "test mode" and password == "test":
+    # Allow demo mode
+    if username == "demo" and password == "demo":
         return True
     
     valid_users = load_valid_users()
@@ -35,9 +118,12 @@ def validate_login(username, password):
             return True
     return False
 
-@st.dialog("Login", dismissible=False, width="small")
+
+@st.dialog("Login", width="small")
 def get_user_details():
-    st.markdown("### Login Required")
+    st.markdown("### Welcome to TeamMait")
+    st.markdown("Enter your credentials to continue, or use `demo`/`demo` for a demo.")
+    
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     submit = st.button("Login", type="primary", use_container_width=True)
@@ -51,68 +137,30 @@ def get_user_details():
             st.error("Invalid credentials. Please try again.")
             return
         
-        # If test user, prompt for API key
-        if username == "test mode" and password == "test":
-            st.session_state.is_test_user = True
-            st.session_state.user_info = {
-                "username": username,
-                "password": password,
-                "consent_given": None,
-                "consent_timestamp": None
-            }
-            st.session_state["username"] = username
-            st.session_state["password"] = password
-            st.rerun()
+        # Check if demo user needs API key
+        if username == "demo" and password == "demo":
+            st.session_state.is_demo_user = True
         else:
-            st.session_state.is_test_user = False
-            st.session_state.user_info = {
-                "username": username,
-                "password": password,
-                "consent_given": None,
-                "consent_timestamp": None
-            }
-            st.session_state["username"] = username
-            st.session_state["password"] = password
-            st.rerun()
-
-# Initialize main session ID for all modules
-if "main_session_id" not in st.session_state:
-    st.session_state.main_session_id = str(uuid.uuid4())
-
-def persist_consent_data():
-    """Persist consent and session data to disk."""
-    try:
-        username = st.session_state.get("username", "unknown")
-        session_id = st.session_state.get("main_session_id", "unknown")
+            st.session_state.is_demo_user = False
         
-        metadata = {
-            "session_id": session_id,
+        st.session_state.user_info = {
             "username": username,
-            "created_at": datetime.now().isoformat(),
-            "last_activity": datetime.now().isoformat(),
-            "consent_given": st.session_state.get("user_info", {}).get("consent_given"),
-            "consent_timestamp": st.session_state.get("user_info", {}).get("consent_timestamp"),
-            "is_test_user": st.session_state.get("is_test_user", False),
-            "status": "active",
+            "logged_in_at": datetime.now().isoformat()
         }
-        
-        success = SessionManager.save_session_metadata(username, session_id, metadata)
-        if not success:
-            st.toast("⚠️ Failed to save consent", icon="⚠️")
-    except Exception:
-        pass  # Silent fail
+        st.session_state["username"] = username
+        st.rerun()
 
-# Handle test user API key prompt
-if "is_test_user" not in st.session_state:
-    st.session_state.is_test_user = False
 
+# Check login
 if "user_info" not in st.session_state:
     get_user_details()
     st.stop()
 
-# If test user and no API key provided yet, show prompt
-if st.session_state.is_test_user and "test_api_key" not in st.session_state:
-    st.info("You're running in **test mode**. You'll need to provide your own OpenAI API key to use Modules 1 and 2.")
+username = st.session_state["username"]
+
+# Handle demo user API key
+if st.session_state.get("is_demo_user") and "demo_api_key" not in st.session_state:
+    st.info("**Demo Mode**: You'll need to provide your own OpenAI API key.")
     with st.form("api_key_form"):
         api_key_input = st.text_input(
             "Enter your OpenAI API Key",
@@ -123,120 +171,361 @@ if st.session_state.is_test_user and "test_api_key" not in st.session_state:
             if not api_key_input or not api_key_input.startswith("sk-"):
                 st.error("Please enter a valid OpenAI API key (starts with 'sk-').")
             else:
-                st.session_state.test_api_key = api_key_input
+                st.session_state.demo_api_key = api_key_input
                 st.rerun()
+    st.stop()
 
-# If test user has API key, show option to reset it
-if st.session_state.is_test_user and "test_api_key" in st.session_state:
-    with st.expander("API Key Settings"):
-        st.write("Your OpenAI API key is set.")
-        if st.button("Reset API Key", type="secondary"):
-            del st.session_state.test_api_key
-            st.rerun()
 
-# (sidebar navigation removed)
+# ---------- Initialize Session State ----------
+if "main_session_id" not in st.session_state:
+    st.session_state.main_session_id = str(uuid.uuid4())
 
-# ---------- Main Page Content ----------
-st.title("TeamMait: Therapy Transcript Review Assistant")
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Hi! I'm TeamMait, your peer-support assistant for reviewing therapy session transcripts. "
+                      "You can find the session transcript in the sidebar. Feel free to ask me any questions about "
+                      "the therapist's techniques, the session dynamics, or anything else you'd like to discuss.",
+            "ts": now_ts(),
+        }
+    ]
 
-st.markdown("""
-<style>
-    body { font-size: 16px; }
-    h3, h4 { font-size: 18px; }
-    p { font-size: 16px; line-height: 1.6; }
-    li { font-size: 16px; line-height: 1.6; }
-</style>
+if "message_buffer" not in st.session_state:
+    st.session_state.message_buffer = MessageBuffer()
 
-### Welcome!
-- TeamMait is a peer-support assistant designed to help you review and analyze a therapy session transcript.
-- Please read the consent form below before proceeding.
 
----
+# ---------- OpenAI Client ----------
+def get_openai_client():
+    if OpenAI is None:
+        st.error("OpenAI package not installed. Run: pip install openai")
+        return None
+    
+    # Check for demo user API key first
+    if st.session_state.get("is_demo_user") and st.session_state.get("demo_api_key"):
+        key = st.session_state.get("demo_api_key")
+    else:
+        key = get_secret_then_env("OPENAI_API_KEY")
+    
+    if not key:
+        st.error("Missing OPENAI_API_KEY.")
+        return None
+    return OpenAI(api_key=key)
 
-# Research Consent & Privacy Notice
 
-#### Study Purpose
-This research study investigates how AI can enhance clinical supervision and training in therapy settings. Your participation will help us understand the effectiveness of AI-assisted tools for reviewing therapy session transcripts and supporting clinical decision-making.
+# ---------- System Prompt ----------
+def build_system_prompt() -> str:
+    """Build system prompt for open chat mode."""
+    return (
+        "You are TeamMait, a peer-support assistant for expert clinicians reviewing therapist performance in a transcript. "
+        "Your responses must follow two behavioral modes: global rules (always active) and analysis mode (only when the user requests supervisory analysis).\n\n"
 
-#### Data Collection & Privacy
-- Transcripts and survey/interview responses will be anonymized and stored securely on secured Penn State servers (authorized personnel only). Your identity will be anonymized from all data prior to analysis.
-- Your interactions with TeamMait will be recorded via Zoom; recordings will be deleted after transcripts are verified and archived.
-- Please avoid including identifying information about yourself or others in your messages.
+        "1. GLOBAL RULES (ALWAYS ACTIVE)\n"
+        "- Never fabricate transcript content, facts, or therapist intentions.\n"
+        "- Do not infer internal states, emotions, or off-transcript behavior.\n"
+        "- Respond concisely, professionally, and only to what the user asked.\n"
+        "- Use a natural, peer-like supervisory tone; avoid rigid sections or templates unless the user requests structure.\n"
+        "- Treat each user message independently unless the user explicitly references earlier turns.\n"
+        "- If the user gives a dismissive acknowledgment (e.g., 'ok', 'thanks', 'got it'), briefly acknowledge and ask whether they want to continue or move on.\n"
+        "- If the user expresses confusion, provide a simpler, more direct explanation of your prior point.\n"
+        "- Do not offer unsolicited elaboration or additional insights outside analytic tasks.\n"
+        "- Do NOT ask if the user wants you to analyze or offer to analyze. Simply respond to their question or request directly.\n"
+        "- NEVER end messages with offers like 'Would you like me to...', 'Should I...', etc.\n\n"
 
-#### Your Rights
-- Participation is completely voluntary; you may discontinue at any time without penalty.
-- You may ask any questions to the proctor at any point.
-- Your participation contributes to advancing clinical training tools
-            
-#### Contact Information
-If you have questions about this research study, please contact the research team via domattioli@psu.edu.
-""", unsafe_allow_html=True)
+        "2. ANALYSIS MODE (ONLY WHEN USER REQUESTS SUPERVISORY ANALYSIS)\n"
+        "Enter analysis mode only when the user asks you to analyze therapist behavior, evaluate fidelity, generate observations, or provide supervision-like feedback.\n\n"
 
-st.markdown("""
----
+        "When in analysis mode:\n"
+        "- Cite transcript lines in the format [Line X] when providing evidence.\n"
+        "- Base all claims on observable behavior only.\n"
+        "- Use PE fidelity criteria as the interpretive framework.\n"
+        "- Use calibrated language such as 'appears', 'may indicate', or 'based on [Line X–Y]'.\n"
+        "- Frame feedback as observations or suggestions, not directives.\n"
+        "- Present reasoning in a way that allows the clinician to agree, disagree, or reinterpret.\n"
+        "- Do not generalize beyond this specific transcript or session.\n\n"
 
-**By checking the consent box, you acknowledge that you have read and understood this information and agree to participate in this research study.**
-""")
+        "Format in Analysis Mode:\n"
+        "- Provide ideally 3, but no more than 5, bullet points to answer a given query.\n"
+        "- One sentence per bullet; limit each bullet to about 10 words or 75 characters.\n"
+        "- Prioritize clarity and brevity; avoid redundancy.\n\n"
 
-# Consent checkbox
-consent = st.checkbox("I have read and agree to the consent form above.", key="consent_checkbox")
+        "3. SCOPE RESTRICTIONS\n"
+        "- You do not evaluate client behavior.\n"
+        "- You do not infer therapist intentions, emotions, or clinical meanings beyond what is observable.\n"
+        "- You analyze only observable therapist behaviors through the PE fidelity framework when in analysis mode.\n\n"
 
-if consent:
-    st.session_state.user_info["consent_given"] = True
-    st.session_state.user_info["consent_timestamp"] = datetime.now().isoformat()
-    persist_consent_data()  # Save consent to disk
-    st.markdown(
-        "<p style='font-size: 20px; font-weight: bold; color: #059669; margin-top: 16px;'>"
-        "Click the '<u><strong>Module 1</strong></u>' tab in the left sidebar to continue."
-        "</p>",
-        unsafe_allow_html=True
+        "After completing an analytic task, return to the global rules unless the user continues to request supervisory analysis."
     )
-else:
-    st.markdown(
-        "<p style='font-size: 18px; color: #6b7280; margin-top: 16px;'>"
-        "Please check the consent box above to continue."
-        "</p>",
-        unsafe_allow_html=True
-    )
-st.divider()
-# Collapsible instructions panel (always visible)
-with st.expander("Instructions (click to expand)"):
-    st.markdown("""
-### Study Overview
-- You will be **role-playing** as a clinical supervisor evaluating therapist performance for two Prolonged Exposure (PE) therapy sessions.
-- For each of the two modules you can find a PE session transcript in the left side panel of the page.
-- Feel free to ask TeamMait any questions about the transcript and the therapist that may come to mind.
-- Between the two modules will be a brief Qualtrics survey about your experience in psychology and with AI.
-- The entire study will last approximately 55 minutes.
-    - Your proctor will keep track of your time to ensure you stay within the study limits.
-                
-#### Module 1 ~ 15-20 minutes
-- Ask TeamMait any questions about the therapy transcript, therapist behavior, demonstratic clinical skill, or therapuetic process.
-- **Natural Conversation**: TeamMait responds when you initiate questions.
-- Use TeamMait however feels natural for your evaluation process
-- Feel free to request justification or supporting evidence for anything TeamMait offers to you.
 
-#### Qualtrics Survey ~ 5 minutes
+
+# ---------- ChromaDB / RAG Setup ----------
+@st.cache_resource(show_spinner=False)
+def initialize_chroma():
+    embed_model = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embed_model)
+    
+    chroma_client = chromadb.PersistentClient(
+        path="./rag_store",
+        settings=Settings(),
+        tenant=DEFAULT_TENANT,
+        database=DEFAULT_DATABASE,
+    )
+    collection = chroma_client.get_or_create_collection("therapy", embedding_function=embedding_fn)
+    return chroma_client, collection
+
+
+def extract_text_from_docx(docx_path: str) -> str:
+    """Extract text content from a DOCX file."""
+    if Document is None:
+        return f"[Error: python-docx not installed]"
+    
+    try:
+        doc = Document(docx_path)
+        text_parts = []
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text_parts.append(paragraph.text.strip())
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if row_text:
+                    text_parts.append(" | ".join(row_text))
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        return f"[Error reading {os.path.basename(docx_path)}: {str(e)}]"
+
+
+@st.cache_resource(show_spinner=False)
+def load_rag_documents():
+    """Load RAG documents from doc/RAG folder."""
+    _, collection = initialize_chroma()
+    doc_folder = "doc/RAG"
+    supporting_folder = os.path.join(doc_folder, "supporting_documents")
+    
+    documents = []
+    ids = []
+    
+    # Load reference conversation
+    ref_path = os.path.join(doc_folder, "116_P8_conversation.json")
+    if os.path.exists(ref_path):
+        with open(ref_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict) and "full_conversation" in data:
+                for i, turn in enumerate(data["full_conversation"]):
+                    line_num = i + 1
+                    numbered_turn = f"[Line {line_num}] {turn}"
+                    documents.append(numbered_turn)
+                    ids.append(f"ref_{i}")
+    
+    # Load supporting documents
+    if os.path.exists(supporting_folder):
+        for json_path in glob.glob(os.path.join(supporting_folder, "*.json")):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        documents.append(str(data))
+                        ids.append(f"supp_{os.path.basename(json_path)}")
+            except Exception:
+                pass
         
-#### Module 2 ~ 20 minutes
-- TeamMait will share prepared observations about notable aspects of the transcript.
-- Progress through observations at your own pace.
-- Again, feel free to request TeamMait to expand on anything offers to you.
-        
-#### Qualitative Interview ~ 10-15 minutes
-- Complete a short interview to explore your experience with TeamMait.
-    """)
+        for docx_path in glob.glob(os.path.join(supporting_folder, "*.docx")):
+            content = extract_text_from_docx(docx_path)
+            if content and not content.startswith("[Error"):
+                documents.append(content)
+                ids.append(f"supp_{os.path.basename(docx_path)}")
+    
+    # Seed collection if empty
+    if collection.count() == 0 and documents:
+        collection.add(documents=documents, ids=ids)
+    
+    return documents
+
+
+# Load RAG docs
+rag_documents = load_rag_documents()
+
+
+def retrieve_context(query: str, n_results: int = 5) -> str:
+    """Retrieve relevant context from ChromaDB."""
+    try:
+        _, collection = initialize_chroma()
+        results = collection.query(query_texts=[query], n_results=n_results)
+        retrieved_parts = []
+        for docs in results.get("documents", []):
+            retrieved_parts.extend(docs)
+        return " ".join(retrieved_parts)
+    except Exception:
+        return ""
+
+
+# ---------- OpenAI Completion ----------
+def openai_complete(history, system_text, model_name="gpt-4o-mini", stream=True, max_tokens=512):
+    client = get_openai_client()
+    if client is None:
+        return "" if not stream else iter(())
+    
+    messages = []
+    if system_text:
+        messages.append({"role": "system", "content": system_text})
+    for m in history:
+        if m.get("role") in ("user", "assistant"):
+            messages.append({"role": m["role"], "content": m["content"]})
+    
+    if stream:
+        try:
+            resp = client.chat.completions.create(
+                model=model_name, messages=messages, stream=True, 
+                max_tokens=max_tokens, temperature=0.3
+            )
+            for chunk in resp:
+                delta = getattr(chunk.choices[0].delta, "content", None)
+                if delta:
+                    yield delta
+        except Exception as e:
+            yield f"\n[Error: {e}]"
+    else:
+        try:
+            resp = client.chat.completions.create(
+                model=model_name, messages=messages, 
+                max_tokens=max_tokens, temperature=0.3
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as e:
+            return f"[Error: {e}]"
+
+
+# ---------- Load Reference Conversation ----------
+def load_reference_conversation():
+    ref_path = "doc/RAG/116_P8_conversation.json"
+    if os.path.exists(ref_path):
+        with open(ref_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict) and "full_conversation" in data:
+                return data["full_conversation"]
+    return []
+
 
 # ---------- Sidebar ----------
 with st.sidebar:
-    st.markdown(f"**Username:** {st.session_state['username']}")
+    st.markdown(f"**User:** {username}")
+    
+    if st.session_state.get("is_demo_user"):
+        with st.expander("API Key Settings"):
+            st.write("Your OpenAI API key is set for this session.")
+            if st.button("Reset API Key"):
+                del st.session_state.demo_api_key
+                st.rerun()
+    
+    if st.button("Clear Chat", type="secondary"):
+        st.session_state.messages = [st.session_state.messages[0]]  # Keep welcome message
+        st.rerun()
+    
+    st.divider()
+    
+    # Reference Conversation
+    with st.expander("📄 Session Transcript", expanded=True):
+        ref_conversation = load_reference_conversation()
+        if ref_conversation:
+            for i, turn in enumerate(ref_conversation):
+                line_num = i + 1
+                is_client = turn.strip().startswith("Client:")
+                speaker = "Client:" if is_client else "Therapist:"
+                content = turn.replace(f"{speaker} ", "", 1).strip()
+                
+                if is_client:
+                    st.markdown(f"""
+                    <div style="text-align: right; margin-left: 0%; padding: 8px; border-radius: 8px; background: rgba(100,100,100,0.1); margin-bottom: 8px;">
+                    <small style="color: #888; font-size: 0.75em;">[Line {line_num}] {speaker}</small><br>
+                    <span style="font-size: 0.9em;">{content}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="padding: 8px; margin-bottom: 8px;">
+                    <small style="color: #888; font-size: 0.75em;">[Line {line_num}] {speaker}</small><br>
+                    <em style="font-size: 0.9em;">{content}</em>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("No transcript loaded.")
 
-# Preload Module data in background when user is on Home page
-if st.session_state.username:
-    if "all_modules_preloaded" not in st.session_state:
-        with st.spinner("Preparing modules..."):
-            try:
-                from utils.module_preload import preload_all_modules
-                preload_all_modules()
-            except Exception as e:
-                pass  # Preload is optional - modules will load normally
+
+# ---------- Main Content ----------
+st.title("🧠 TeamMait")
+st.markdown(
+    "<p style='font-size:14px;color:#6b7280;margin-bottom:16px;'>"
+    "Your AI peer-support assistant for reviewing therapy session transcripts. "
+    "Ask questions about the session, therapist techniques, or request analysis."
+    "</p>",
+    unsafe_allow_html=True
+)
+
+# Chat display
+for m in st.session_state.messages:
+    role = m["role"]
+    timestamp = m.get("ts", "")
+    time_str = ""
+    if timestamp:
+        try:
+            time_str = timestamp.split("T")[1][:5]
+        except:
+            pass
+    
+    with st.chat_message(role):
+        if time_str:
+            st.caption(f"_{time_str}_")
+        st.markdown(m["content"])
+
+
+# Chat input
+prompt = st.chat_input("Ask TeamMait about the session...")
+
+if prompt and prompt.strip():
+    # Check for duplicates
+    result = st.session_state.message_buffer.add_message(prompt)
+    if isinstance(result, tuple):
+        is_new, is_near_duplicate = result
+    else:
+        is_new, is_near_duplicate = True, False
+    
+    if not is_new:
+        st.warning("⚠️ You just asked that. Please try a different question.")
+    elif is_near_duplicate:
+        st.info("You asked something very similar. Would you like to expand on that question?")
+    else:
+        # Add user message
+        user_msg = {"role": "user", "content": prompt, "ts": now_ts()}
+        st.session_state.messages.append(user_msg)
+        
+        with st.chat_message("user"):
+            st.caption(f"_{now_ts().split('T')[1][:5]}_")
+            st.markdown(prompt)
+        
+        # Generate response
+        context = retrieve_context(prompt)
+        system_prompt = build_system_prompt() + f"\n\nSession context:\n{context}"
+        
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
+            placeholder.markdown("*Thinking...*")
+            
+            acc = ""
+            first_chunk = True
+            for chunk in openai_complete(
+                history=st.session_state.messages,
+                system_text=system_prompt,
+                stream=True,
+            ):
+                if first_chunk:
+                    placeholder.empty()
+                    first_chunk = False
+                acc += chunk
+                placeholder.markdown(acc)
+            
+            # Save response
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": acc.strip(),
+                "ts": now_ts(),
+            })

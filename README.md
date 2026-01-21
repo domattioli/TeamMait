@@ -1,229 +1,144 @@
 # TeamMait
-**T**eam **E**xpert **A**I **M**entoring **A**ssistant for **I**ntervention **T**raining
 
-A peer-support assistant designed to help expert clinicians review and analyze PE (Prolonged Exposure) therapy session transcripts through AI-assisted supervision.
+**AI-Powered Therapy Transcript Review Assistant**
 
-## Overview
-
-TeamMait provides four interaction modes for clinical supervision:
-1. **Module 1 (Open Chat)**: Free-form conversation about a therapy transcript
-2. **Module 2 (Guided Observations)**: Structured observations with evidence and discussion
-3. **Survey**: External Qualtrics survey for demographics collection
-4. **End**: Session completion and data export
+TeamMait is a peer-support assistant designed to help clinicians review and analyze therapy session transcripts. It uses RAG (Retrieval-Augmented Generation) to provide evidence-based insights grounded in the actual transcript content.
 
 ## Features
 
-### Core Functionality
-- **AI-Powered Analysis**: Uses OpenAI GPT-4o-mini for transcript analysis and summaries
-- **RAG (Retrieval-Augmented Generation)**: ChromaDB vector database for contextual responses
-- **Preloading**: Background loading of embeddings and ChromaDB on Home page for faster navigation
-- **Message Queue**: Sequential message processing prevents input loss during rapid interaction
-- **Line-Referenced Citations**: Precise transcript references with line numbers
+- **Transcript Review**: Load and display therapy session transcripts with line numbers
+- **AI-Powered Discussion**: Ask questions about therapist techniques, session dynamics, and clinical observations
+- **Evidence-Based Responses**: Responses cite specific transcript lines using `[Line X]` format
+- **PE Fidelity Framework**: Analysis grounded in Prolonged Exposure therapy fidelity criteria
+- **Calibrated Language**: Uses appropriate epistemic markers ("appears", "may indicate")
 
-### User Interface
-- **Consent Integration**: Consent form on landing page with checkbox requirement
-- **Professional Styling**: Clean, clinical interface with proper typography
-- **Collapsible Evidence**: Expandable evidence boxes with line numbers
-- **Progress Tracking**: Visual indicators for observation progress
-- **Timestamp Display**: Unobtrusive timestamps throughout conversations
-
-## File Structure
-
-```
-TeamMait/
-├── Home.py                          # Landing page with login, consent, preloading
-├── pages/
-│   ├── 1_Module_1.py               # Open chat mode (uses P8 transcript)
-│   ├── 2_Qualtrics_Survey.py       # External survey redirect
-│   ├── 3_Module_2.py               # Guided observations (uses P10 transcript)
-│   └── 4_End.py                    # Session completion and export
-├── utils/
-│   ├── __init__.py                 
-│   ├── analytics.py                # Event logging
-│   ├── api_handler.py              # OpenAI API with retry logic
-│   ├── input_parser.py             # Navigation intent detection, message buffer
-│   ├── module_preload.py           # Background ChromaDB/embedding preloader
-│   ├── navigation_validator.py     # Phase transition validation
-│   ├── session_manager.py          # Persistent session storage
-│   └── streamlit_compat.py         # Compatibility utilities
-├── doc/
-│   ├── consent_form.md             # Consent form text
-│   ├── RAG/
-│   │   ├── 116_P8_conversation.json    # Module 1 transcript
-│   │   ├── 281_P10_conversation.json   # Module 2 transcript
-│   │   └── supporting_documents/       # Additional training materials
-│   └── interaction_prompts/
-│       └── interaction_prompts.json    # Module 2 observation bank
-├── rag_store/                      # ChromaDB persistent storage
-├── user_sessions/                  # Persistent session data
-├── logs/                           # Analytics logs
-├── requirements.txt                # Python dependencies
-└── runtime.txt                     # Python version specification
-```
-
-## Installation & Setup
+## Quick Start
 
 ### Prerequisites
+
 - Python 3.9+
 - OpenAI API key
 
-### Dependencies
+### Installation
+
 ```bash
+# Clone or download the repository
+cd teammait
+
+# Create virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### Required Environment Variables
-```bash
-export OPENAI_API_KEY="your-openai-api-key"
-```
+### Configuration
 
-Or add to `.streamlit/secrets.toml`:
+Create a `.streamlit/secrets.toml` file:
+
 ```toml
-OPENAI_API_KEY = "your-openai-api-key"
+OPENAI_API_KEY = "sk-your-api-key-here"
+
+# Optional: For multi-user deployment
+[credentials]
+users = [
+    { username = "user1", password = "pass1" },
+    { username = "user2", password = "pass2" }
+]
 ```
 
-### Running the Application
+Or use demo mode with `demo`/`demo` credentials and provide your API key at runtime.
+
+### Running
+
 ```bash
 streamlit run Home.py
 ```
 
+The app will open at `http://localhost:8501`
+
+## Project Structure
+
+```
+teammait/
+├── Home.py                 # Main application (chat interface)
+├── requirements.txt        # Python dependencies
+├── utils/
+│   ├── __init__.py
+│   ├── session_manager.py  # Session persistence
+│   └── input_parser.py     # Message handling
+├── doc/
+│   └── RAG/
+│       ├── 116_P8_conversation.json    # Sample transcript
+│       └── supporting_documents/
+│           └── 116_P8_metadata.json    # Client/therapist metadata
+├── archive/
+│   └── experiment_setup/   # Original research study files
+│       ├── README.md
+│       ├── MODULE_SUMMARY.md
+│       └── original_*.py
+└── logs/                   # Application logs
+```
+
 ## Usage
 
-### Authentication
-- Users authenticate via username/password (configured in `.streamlit/secrets.toml`)
-- **Test Mode**: Use username `test mode` / password `test` to try the app with your own OpenAI API key
+1. **Login**: Use your credentials or demo mode
+2. **View Transcript**: Expand the sidebar to see the full session transcript
+3. **Ask Questions**: Type questions in the chat input about:
+   - Therapist techniques and interventions
+   - Session dynamics and flow
+   - Clinical observations
+   - Fidelity to PE protocol
+4. **Request Analysis**: Ask for specific evaluations, e.g.:
+   - "Analyze the therapist's SUDS monitoring"
+   - "What techniques did the therapist use for processing?"
+   - "Were there missed opportunities for engagement?"
 
-### Interaction Modes
+## Adding New Transcripts
 
-#### Module 1: Open Chat
-- Natural conversation with TeamMait about the therapy transcript (P8)
-- Ask questions about therapist performance, techniques, or observations
-- Request evidence and citations from the transcript
-- No time limits or structured requirements
-
-#### Module 2: Guided Observations
-- TeamMait presents 3 structured observations about a different transcript (P10)
-- Each observation includes one of three styles:
-  - `evidence_only_reflection`: Evidence excerpts for user reflection
-  - `evidence_based_evaluation`: Evaluation with supporting evidence
-  - `actionable_training_prescription`: Specific recommendations with evidence
-- Evidence includes line numbers referencing the transcript
-- Users discuss, skip, or advance through observations using the **⏩ Next** button
-- Review phase allows revisiting all observations and requesting summaries
-
-#### Survey & Completion
-- External Qualtrics survey for feedback
-- Session completion with data export
-- Comprehensive JSON export with conversation history and metadata
-
-## Technical Implementation
-
-### AI System Prompt
-TeamMait operates with strict guidelines:
-- Focus exclusively on observable therapist skills in transcripts
-- Anchor all claims to transcript evidence with line references
-- Maintain academic neutrality without emotional language
-- Provide evidence-based analysis with specific citations
-- Limit scope to transcript analysis (no broader therapy advice)
-
-### Response Handling
-- **API Retry Handler**: Exponential backoff (2s, 4s, 8s) for transient failures
-- **Message Queue**: Sequential processing prevents message loss during rapid input
-- **Near-Duplicate Detection**: Warns users when submitting similar questions (>90% similarity)
-- **Navigation Intent**: Detects phrases like "next" and redirects to the Next button
-
-### Session & Data Management
-- **Persistent Storage**: Sessions saved to `user_sessions/` directory
-- **Session Timeout**: 2-hour inactivity timeout
-- **Session Cleanup**: Expired sessions removed after 48 hours
-- **Metadata Tracking**: Phase, observation index, message counts
-- **Analytics Logging**: Events logged to `logs/session_analytics.jsonl`
-- **Export Functionality**: JSON format with timestamps, metadata, and conversation history
-- **Google Sheets Integration**: Automatic export for non-test users
-
-## Research & Privacy
-
-### Study Purpose
-This tool is designed for research into AI-assisted clinical supervision and training. Participants serve as expert evaluators of both therapist performance and AI system effectiveness.
-
-### Data Collection
-- All interactions are logged for research analysis
-- Data is anonymized in research outputs
-- Participation is voluntary with right to withdraw
-- No personal client information is collected
-
-### Consent Framework
-- Comprehensive informed consent process
-- Clear explanation of research purpose and data use
-- Professional context appropriate for expert clinicians
-- Detailed privacy and security information
-
-## Customization
-
-### Adding Observations
-Edit `doc/interaction_prompts/interaction_prompts.json`:
+1. Create a JSON file in `doc/RAG/` with the structure:
 ```json
 {
-  "id": "unique_id",
-  "style": "evidence_based_evaluation",
-  "title": "Brief title",
-  "assertion": "Main observation",
-  "evidence": [{"text": "Transcript quote", "line": 42}],
-  "justification": "Clinical reasoning"
+  "full_conversation": [
+    "Therapist: First utterance...",
+    "Client: Response...",
+    ...
+  ]
 }
 ```
 
-### Transcript Management
-- Module 1 uses `doc/RAG/116_P8_conversation.json`
-- Module 2 uses `doc/RAG/281_P10_conversation.json`
-- Supporting documents in `doc/RAG/supporting_documents/` are indexed in ChromaDB
-
-### User Management
-Add users to `.streamlit/secrets.toml`:
-```toml
-[users]
-username1 = "password1"
-username2 = "password2"
+2. Optionally add metadata in `doc/RAG/supporting_documents/`:
+```json
+{
+  "client_profile": { ... },
+  "therapist_profile": { ... },
+  "trauma_info": { ... }
+}
 ```
 
-## Deployment
+3. Delete `./rag_store/` to rebuild the vector database on next run
 
-### Production
-- Configure environment variables for OpenAI API
-- Ensure proper file permissions for `rag_store/` directory
-- Set up secure user authentication
-- Configure HTTPS for production use
+## Research Background
 
-## Troubleshooting
+This project originated from a research study at Penn State investigating how AI can enhance clinical supervision and training in therapy settings. The original experiment included:
 
-### Common Issues
+- Multiple review modules (open chat + guided observations)
+- Structured feedback items with different presentation styles
+- Session timing and analytics
+- Comprehensive data export
 
-**ChromaDB Permission Error**
-```bash
-chmod -R 755 rag_store/
-```
+The archived experiment setup is available in `archive/experiment_setup/` for reference.
 
-**OpenAI API Key Missing**
-- Verify environment variable or secrets.toml configuration
-- Check API key validity and billing status
-
-**Document Processing Errors**
-- Ensure python-docx is installed for DOCX support
-- Check file permissions in supporting_documents folder
-- Verify document formats are supported
-
-**Session State Issues**
-- Clear browser cache and cookies
-- Restart Streamlit server
-- Check for JavaScript console errors
-
-### Debug Mode
-Enable debug output by checking browser console for detailed error messages and state information.
-
-## Contributing
-
-This is a research tool developed for clinical supervision studies. For issues or improvements, please consult with the research team through institutional channels.
+**Original Research Team**:
+- Principal Investigator: Dominik Mattioli, M.S., Ph.D.
+- Institution: Penn State College of Information Sciences and Technology
+- Funding: National Science Foundation, Award #2326144
 
 ## License
 
-This software is developed for research purposes. Please refer to your institutional guidelines for usage and distribution.
+[Add your license here]
+
+## Contributing
+
+[Add contribution guidelines here]

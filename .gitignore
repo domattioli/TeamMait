@@ -1,7 +1,6 @@
 # custom lines
 .streamlit/secrets.toml
 .venv/
-sandboxing/
 SENSITIVE_INFO_AUDIT.md
 DEPRECATION_AUDIT.md
 manuscript_draft_sections.pages
