@@ -44,19 +44,19 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit ***REMOVED*** / coverage reports
+# Unit test / coverage reports
 htmlcov/
 .tox/
 .nox/
 .coverage
 .coverage.*
 .cache
-nose***REMOVED***s.xml
+nosetests.xml
 coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
-.py***REMOVED***_cache/
+.pytest_cache/
 cover/
 
 # Translations
@@ -119,7 +119,7 @@ ipython_config.py
 # pdm
 #   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
 #   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
-#   https://pdm-project.org/en/la***REMOVED***/usage/project/#working-with-version-control
+#   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
 #pdm.lock
 #pdm.toml
 .pdm-python
