@@ -44,6 +44,20 @@ st.set_page_config(
     layout="wide"
 )
 
+# ---------- Secrets rotation gate ----------
+# The credentials used by earlier deployments were exposed and have been revoked.
+# The app stays disabled until the deployment's secrets are replaced and
+# SECRETS_ROTATED = true is added to them (Streamlit Cloud: app Settings > Secrets).
+if not st.secrets.get("SECRETS_ROTATED", False):
+    st.error(
+        "**TeamMait is disabled: its secrets have expired.**\n\n"
+        "The API keys and login credentials for this deployment were revoked. "
+        "To re-enable the app, the app owner must open the app's Settings > Secrets, "
+        "replace `OPENAI_API_KEY` and every password under `[credentials] users` with new values, "
+        "and add the line `SECRETS_ROTATED = true`."
+    )
+    st.stop()
+
 # ---------- Simple avatars (SVG data URIs) ----------
 def svg_data_uri(svg: str) -> str:
     return "data:image/svg+xml;utf8," + quote(svg)
